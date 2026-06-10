@@ -47,6 +47,20 @@ private struct InboxContentView: View {
         } message: {
             Text(vm.errorMessage ?? "")
         }
+        .alert("Clear Inbox", isPresented: $vm.showClearConfirm) {
+            Button("Clear All", role: .destructive) { vm.clearAll() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Archive all \(vm.recentItems.count) items? They'll be removed from the inbox but kept in the database.")
+        }
+        .toolbar {
+            if !vm.recentItems.isEmpty {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Clear All") { vm.showClearConfirm = true }
+                        .foregroundStyle(.red)
+                }
+            }
+        }
     }
 
     private var inputPanel: some View {
@@ -85,19 +99,31 @@ private struct InboxContentView: View {
                     vm.isDragTargeted ? Color.accentColor.opacity(0.06) : Color.clear,
                     in: RoundedRectangle(cornerRadius: 10)
                 )
-                .frame(height: 64)
+                .frame(height: 72)
 
-            HStack(spacing: 8) {
-                Image(systemName: "arrow.down.doc")
-                    .foregroundStyle(vm.isDragTargeted ? Color.accentColor : Color.secondary)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Drop a file here")
-                        .font(.callout)
+            HStack(spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.down.doc")
                         .foregroundStyle(vm.isDragTargeted ? Color.accentColor : Color.secondary)
-                    Text("PDF, DOCX, PPT, ZIP, images — ALMS will extract metadata")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Drop a file here")
+                            .font(.callout)
+                            .foregroundStyle(vm.isDragTargeted ? Color.accentColor : Color.secondary)
+                        Text("PDF, DOCX, PPT, ZIP, images")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
+
+                Divider().frame(height: 28)
+
+                Button {
+                    vm.openFilePicker()
+                } label: {
+                    Label("Choose File…", systemImage: "folder")
+                        .font(.callout)
+                }
+                .buttonStyle(.bordered)
             }
         }
         .onDrop(of: [.fileURL], isTargeted: $vm.isDragTargeted) { providers in
@@ -121,8 +147,8 @@ private struct InboxContentView: View {
                     description: Text("Type something above or drop a file to get started.")
                 )
             } else {
-                List(vm.recentItems, id: \.id) { item in
-                    ItemRowView(item: item)
+                List(vm.recentItems, id: \.item.id) { row in
+                    ItemRowView(item: row.item, subjectCode: row.subjectCode, unitName: row.unitName)
                         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                 }
                 .listStyle(.plain)

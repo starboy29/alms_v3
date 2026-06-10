@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ItemRowView: View {
     let item: Item
+    var subjectCode: String? = nil
+    var unitName: String? = nil
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -16,6 +18,14 @@ struct ItemRowView: View {
                     .lineLimit(1)
                 HStack(spacing: 6) {
                     TypeBadge(type: item.type)
+                    if let unit = unitName {
+                        Text(unit)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                    }
                     if let due = item.dueDate {
                         Text(formattedDate(due))
                             .font(.caption)
@@ -28,8 +38,6 @@ struct ItemRowView: View {
         }
         .padding(.vertical, 2)
     }
-
-    private var subjectCode: String? { nil } // populated externally if needed
 
     private var statusMark: some View {
         Group {

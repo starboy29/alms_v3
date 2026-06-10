@@ -1,5 +1,12 @@
+import AppKit
 import Foundation
 import UniformTypeIdentifiers
+
+struct InboxRow {
+    let item: Item
+    let subjectCode: String?
+    let unitName: String?
+}
 
 @Observable
 final class InboxViewModel {
@@ -11,7 +18,8 @@ final class InboxViewModel {
     var errorMessage: String?
     var showError = false
     var isDragTargeted = false
-    var recentItems: [Item] = []
+    var recentItems: [InboxRow] = []
+    var showClearConfirm = false
 
     let db: ALMSDatabase
 
@@ -89,9 +97,55 @@ final class InboxViewModel {
         reset()
     }
 
+    func openFilePicker() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [.pdf, .presentation, .spreadsheet, .text,
+                                     .image, .zip, .data]
+        panel.title = "Choose a file to import"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        handleDroppedFile(at: url.path)
+    }
+
+    func clearAll() {
+        do {
+            try ItemRepository(db: db).archiveAll()
+            loadRecentItems()
+        } catch {
+            showErrorMessage(error.localizedDescription)
+        }
+    }
+
     func loadRecentItems() {
         let all = (try? ItemRepository(db: db).fetchAll()) ?? []
-        recentItems = Array(all.prefix(40))
+        let items = Array(all.prefix(40))
+
+        let subjectRepo = SubjectRepository(db: db)
+        let unitRepo = UnitRepository(db: db)
+
+        // Batch-resolve unique subject and unit IDs to avoid N+1 queries.
+        var subjectMap: [String: String] = [:]
+        for id in Set(items.map(\.subjectId)) {
+            if let s = try? subjectRepo.fetchById(id) {
+                subjectMap[id] = s.code?.isEmpty == false ? s.code! : s.name
+            }
+        }
+        var unitMap: [String: String] = [:]
+        for id in Set(items.compactMap(\.unitId)) {
+            if let u = try? unitRepo.fetchById(id) {
+                unitMap[id] = u.name
+            }
+        }
+
+        recentItems = items.map { item in
+            InboxRow(
+                item: item,
+                subjectCode: subjectMap[item.subjectId],
+                unitName: item.unitId.flatMap { unitMap[$0] }
+            )
+        }
     }
 
     private func reset() {

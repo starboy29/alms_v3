@@ -75,20 +75,25 @@ struct RoutingEngine {
         item: Item, listName: String,
         sync: SyncLinkRepository, logger: ActivityLogRepository, now: String
     ) throws {
+        // Resolve subject once — used for both the title prefix and the #tag.
+        let subject = (try? SubjectRepository(db: db).fetchById(item.subjectId)) ?? nil
+        let subjectLabel = subject.map { $0.code?.isEmpty == false ? $0.code! : $0.name }
+
+        // "ANN: assignment 2"
+        let reminderTitle = subjectLabel.map { "\($0): \(item.title)" } ?? item.title
+
         let link = ReminderLink(
             id: UUID().uuidString, itemId: item.id, reminderExtId: nil,
-            reminderTitle: item.title, listName: listName,
+            reminderTitle: reminderTitle, listName: listName,
             status: SyncStatus.pending.rawValue,
             lastSyncedAt: nil, errorMessage: nil, retryCount: 0,
             createdAt: now, updatedAt: now
         )
         try sync.upsertReminderLink(link)
 
-        // Organizing #tags for the reminder: a constant #ALMS marker, plus subject, type and chapter.
+        // Organizing #tags: #ALMS marker, subject, type, chapter/unit.
         var tags = ["ALMS"]
-        if let subject = (try? SubjectRepository(db: db).fetchById(item.subjectId)) ?? nil {
-            tags.append((subject.code?.isEmpty == false ? subject.code! : subject.name))
-        }
+        if let label = subjectLabel { tags.append(label) }
         tags.append(item.type)
         if let unitId = item.unitId,
            let unit = (try? UnitRepository(db: db).fetchById(unitId)) ?? nil {
@@ -98,14 +103,12 @@ struct RoutingEngine {
         let due = item.dueDate.flatMap(Self.parseDate)
 
         do {
-            // EventKit (not the shortcut): puts the reminder in the chosen list (creating it if needed),
-            // sets a real due date, and writes the #tags into the notes.
             try RemindersService().createReminder(
-                title: item.title, listName: listName, dueDate: due, tags: tags
+                title: reminderTitle, listName: listName, dueDate: due, tags: tags
             )
             try sync.updateReminderLinkStatus(itemId: item.id, status: .created, error: nil)
             logger.log(eventType: .shortcutCall, entityId: item.id,
-                       details: "Created reminder: \(item.title)")
+                       details: "Created reminder: \(reminderTitle)")
         } catch {
             try sync.updateReminderLinkStatus(itemId: item.id, status: .failed,
                                               error: error.localizedDescription)
@@ -126,10 +129,16 @@ struct RoutingEngine {
         item: Item, calendarName: String,
         sync: SyncLinkRepository, logger: ActivityLogRepository, now: String
     ) throws {
+        let subject = (try? SubjectRepository(db: db).fetchById(item.subjectId)) ?? nil
+        let subjectLabel = subject.map { $0.code?.isEmpty == false ? $0.code! : $0.name }
+
+        // "ANN: assignment 2 Due"
+        let eventTitle = (subjectLabel.map { "\($0): \(item.title)" } ?? item.title) + " Due"
+
         let eventDate = item.dueDate ?? DateParser.iso8601Date(from: Date())
         let link = CalendarLink(
             id: UUID().uuidString, itemId: item.id, eventExtId: nil,
-            eventTitle: item.title + " Due", calendarName: calendarName,
+            eventTitle: eventTitle, calendarName: calendarName,
             eventDate: eventDate, allDay: true,
             status: SyncStatus.pending.rawValue,
             lastSyncedAt: nil, errorMessage: nil, retryCount: 0,
@@ -138,7 +147,7 @@ struct RoutingEngine {
         try sync.upsertCalendarLink(link)
 
         let params: [String: Any] = [
-            "title": item.title + " Due",
+            "title": eventTitle,
             "start_date": eventDate,
             "all_day": true,
             "calendar": calendarName,

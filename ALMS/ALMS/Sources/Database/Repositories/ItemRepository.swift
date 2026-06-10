@@ -65,5 +65,14 @@ struct ItemRepository {
         }
     }
 
+    func archiveAll() throws {
+        try db.dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE items SET status = 'archived', updated_at = ? WHERE status = 'active'",
+                arguments: [now()]
+            )
+        }
+    }
+
     private func now() -> String { ISO8601DateFormatter().string(from: Date()) }
 }
