@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ALMS — Option B: Dark Sidebar</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; background: #e8e8e8; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+
+  .window {
+    width: 960px; height: 640px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.22);
+    display: flex;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .titlebar {
+    position: absolute; top: 0; left: 0; right: 0; height: 40px;
+    background: #1c1c2e;
+    display: flex; align-items: center; padding: 0 16px; gap: 8px;
+    z-index: 10;
+  }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot.red { background: #ff5f57; }
+  .dot.yellow { background: #febc2e; }
+  .dot.green { background: #28c840; }
+
+  .sidebar {
+    width: 210px;
+    background: #1c1c2e;
+    padding-top: 48px;
+    display: flex; flex-direction: column;
+    flex-shrink: 0;
+  }
+  .app-logo {
+    padding: 16px 18px 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-icon {
+    width: 36px; height: 36px; background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border-radius: 9px; display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; color: #fff;
+  }
+  .logo-text { font-size: 16px; font-weight: 700; color: #fff; }
+  .logo-sub { font-size: 11px; color: #6366f1; margin-top: 1px; }
+
+  .nav-section { padding: 0 10px; }
+  .nav-label { font-size: 10px; font-weight: 600; color: #4b5563; letter-spacing: 0.08em; text-transform: uppercase; padding: 12px 8px 6px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: 8px; margin-bottom: 2px;
+    font-size: 13.5px; color: #9ca3af; cursor: pointer; transition: all 0.15s;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.06); color: #e5e7eb; }
+  .nav-item.active { background: rgba(99,102,241,0.2); color: #a5b4fc; }
+  .nav-item.active .nav-dot { background: #6366f1; }
+  .nav-dot { width: 6px; height: 6px; border-radius: 50%; background: transparent; flex-shrink: 0; }
+
+  .sidebar-spacer { flex: 1; }
+  .sidebar-footer { padding: 14px; border-top: 1px solid rgba(255,255,255,0.06); }
+  .sem-badge {
+    background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3);
+    border-radius: 8px; padding: 8px 12px;
+    font-size: 12px; color: #a5b4fc; text-align: center;
+  }
+
+  .main { flex: 1; display: flex; flex-direction: column; padding-top: 40px; background: #f8f9fb; overflow: hidden; }
+  .page { display: none; flex-direction: column; height: 100%; }
+  .page.active { display: flex; }
+
+  .page-header { padding: 20px 26px 16px; background: #fff; border-bottom: 1px solid #eee; }
+  .page-title { font-size: 18px; font-weight: 700; color: #111; }
+  .page-sub { font-size: 13px; color: #888; margin-top: 2px; }
+
+  .input-area { padding: 18px 26px; background: #fff; border-bottom: 1px solid #eee; }
+  .input-row { display: flex; gap: 10px; margin-bottom: 12px; }
+  .text-input {
+    flex: 1; height: 40px; border: 1.5px solid #e5e7eb; border-radius: 10px;
+    padding: 0 14px; font-size: 14px; color: #111; background: #fafafa;
+    outline: none; transition: border-color 0.15s;
+  }
+  .text-input:focus { border-color: #6366f1; background: #fff; }
+  .btn-primary {
+    height: 40px; padding: 0 20px; background: #6366f1; color: #fff;
+    border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-primary:hover { background: #4f46e5; }
+  .drop-zone {
+    height: 68px; border: 2px dashed #d1d5db; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    color: #9ca3af; font-size: 13.5px; background: #f9fafb;
+  }
+  .drop-zone:hover { border-color: #6366f1; color: #6366f1; background: #f5f3ff; cursor: pointer; }
+
+  .list-scroll { flex: 1; overflow-y: auto; }
+  .list-section-label { font-size: 11px; font-weight: 600; color: #9ca3af; padding: 12px 26px 6px; letter-spacing: 0.05em; text-transform: uppercase; }
+  .item-row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 26px; border-bottom: 1px solid #f3f4f6;
+    cursor: pointer; transition: background 0.1s;
+  }
+  .item-row:hover { background: #f5f3ff; }
+  .subject-pill {
+    font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px;
+    flex-shrink: 0; min-width: 38px; text-align: center;
+  }
+  .ann { background: #ede9fe; color: #6d28d9; }
+  .ml  { background: #d1fae5; color: #065f46; }
+  .cn  { background: #fee2e2; color: #991b1b; }
+  .fla { background: #fef3c7; color: #92400e; }
+  .math{ background: #dbeafe; color: #1e40af; }
+  .item-info { flex: 1; }
+  .item-title { font-size: 13.5px; font-weight: 500; color: #111; }
+  .item-badges { display: flex; gap: 6px; margin-top: 3px; }
+  .badge { font-size: 11px; padding: 1px 7px; border-radius: 5px; font-weight: 500; }
+  .badge-assignment { background: #dbeafe; color: #1d4ed8; }
+  .badge-exam       { background: #fee2e2; color: #dc2626; }
+  .badge-lab        { background: #dcfce7; color: #16a34a; }
+  .badge-notes      { background: #fef3c7; color: #d97706; }
+  .item-date { font-size: 12px; color: #9ca3af; }
+  .item-check { font-size: 15px; }
+  .check-done { color: #6366f1; }
+  .check-todo { color: #d1d5db; }
+
+  /* Dashboard */
+  .dash-scroll { flex: 1; overflow-y: auto; padding: 20px 26px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .stat-card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+    padding: 16px; transition: box-shadow 0.15s;
+  }
+  .stat-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+  .stat-icon { font-size: 20px; margin-bottom: 8px; }
+  .stat-value { font-size: 28px; font-weight: 800; color: #111; line-height: 1; }
+  .stat-value.violet { color: #6366f1; }
+  .stat-value.amber  { color: #d97706; }
+  .stat-value.rose   { color: #e11d48; }
+  .stat-label { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
+  .card-title { font-size: 13px; font-weight: 600; color: #111; margin-bottom: 12px; }
+  .upcoming-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f3f4f6; }
+  .days-badge { font-size: 11px; font-weight: 600; border-radius: 6px; padding: 2px 7px; }
+  .urgent { background: #fee2e2; color: #dc2626; }
+  .soon   { background: #fef3c7; color: #d97706; }
+  .later  { background: #f3f4f6; color: #6b7280; }
+  .upcoming-title { font-size: 13px; color: #374151; flex: 1; }
+  .activity-item { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f3f4f6; }
+  .activity-icon { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+  .ai-import  { background: #ede9fe; }
+  .ai-sync    { background: #d1fae5; }
+  .ai-file    { background: #dbeafe; }
+  .ai-dup     { background: #fef3c7; }
+  .activity-body { flex: 1; }
+  .activity-text { font-size: 12.5px; color: #374151; }
+  .activity-time { font-size: 11px; color: #9ca3af; }
+
+  /* Settings */
+  .settings-scroll { flex: 1; overflow-y: auto; padding: 20px 26px; }
+  .settings-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+  .section-head { font-size: 13px; font-weight: 700; color: #111; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .settings-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .settings-label { font-size: 13px; color: #374151; width: 140px; flex-shrink: 0; }
+  .subject-list { display: flex; flex-direction: column; gap: 8px; }
+  .subject-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #f9fafb; border-radius: 8px; }
+  .subject-code { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 5px; }
+  .subject-name { font-size: 13px; color: #374151; flex: 1; }
+  .btn-ghost { font-size: 12px; color: #6b7280; border: 1px solid #e5e7eb; background: #fff; padding: 3px 10px; border-radius: 6px; cursor: pointer; }
+  .btn-ghost:hover { background: #fee2e2; color: #dc2626; border-color: #fca5a5; }
+</style>
+</head>
+<body>
+<div class="window">
+  <div class="titlebar">
+    <div class="dot red"></div>
+    <div class="dot yellow"></div>
+    <div class="dot green"></div>
+  </div>
+
+  <div class="sidebar">
+    <div class="app-logo">
+      <div class="logo-icon">A</div>
+      <div><div class="logo-text">ALMS</div><div class="logo-sub">Academic Manager</div></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Workspace</div>
+      <div class="nav-item active" onclick="showPage('inbox',this)">
+        <div class="nav-dot"></div> 📥 Inbox
+      </div>
+      <div class="nav-item" onclick="showPage('dashboard',this)">
+        <div class="nav-dot"></div> 📊 Dashboard
+      </div>
+      <div class="nav-item" onclick="showPage('settings',this)">
+        <div class="nav-dot"></div> ⚙️ Settings
+      </div>
+    </div>
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-footer">
+      <div class="sem-badge">📚 Semester 5 — Active</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- INBOX -->
+    <div class="page active" id="inbox">
+      <div class="input-area">
+        <div style="font-size:17px;font-weight:700;color:#111;margin-bottom:14px;">Universal Inbox</div>
+        <div class="input-row">
+          <input class="text-input" placeholder="e.g. ANN Assignment 2 due June 20" value="ML Quiz 3 next Friday">
+          <button class="btn-primary">↵ Submit</button>
+        </div>
+        <div class="drop-zone">
+          <span style="font-size:20px;">📂</span>
+          <div><div style="font-size:13.5px;font-weight:500;">Drop any file here</div><div style="font-size:11.5px;margin-top:2px;">PDF, DOCX, PPT, images, ZIP — ALMS will figure out the rest</div></div>
+        </div>
+      </div>
+      <div class="list-section-label">Recent Items — 14 Active</div>
+      <div class="list-scroll">
+        <div class="item-row">
+          <span class="subject-pill ann">ANN</span>
+          <div class="item-info"><div class="item-title">Assignment 2</div><div class="item-badges"><span class="badge badge-assignment">Assignment</span><span class="item-date">Due Jun 20</span></div></div>
+          <span class="item-check check-done">✓</span>
+        </div>
+        <div class="item-row">
+          <span class="subject-pill ml">ML</span>
+          <div class="item-info"><div class="item-title">Midsem Exam</div><div class="item-badges"><span class="badge badge-exam">Exam</span><span class="item-date">Due Jul 10</span></div></div>
+          <span class="item-check check-done">✓</span>
+        </div>
+        <div class="item-row">
+          <span class="subject-pill cn">CN</span>
+          <div class="item-info"><div class="item-title">Lab 4 — TCP Sockets</div><div class="item-badges"><span class="badge badge-lab">Lab</span><span class="item-date">Due Jun 28</span></div></div>
+          <span class="item-check check-todo">○</span>
+        </div>
+        <div class="item-row">
+          <span class="subject-pill fla">FLA</span>
+          <div class="item-info"><div class="item-title">Unit 2 Notes</div><div class="item-badges"><span class="badge badge-notes">Notes</span></div></div>
+          <span class="item-check check-done">✓</span>
+        </div>
+        <div class="item-row">
+          <span class="subject-pill math">MATH</span>
+          <div class="item-info"><div class="item-title">Assignment 3</div><div class="item-badges"><span class="badge badge-assignment">Assignment</span><span class="item-date">Due Jul 5</span></div></div>
+          <span class="item-check check-todo">○</span>
+        </div>
+        <div class="item-row">
+          <span class="subject-pill ann">ANN</span>
+          <div class="item-info"><div class="item-title">Lab 2 — Backprop</div><div class="item-badges"><span class="badge badge-lab">Lab</span><span class="item-date">Due Jun 25</span></div></div>
+          <span class="item-check check-todo">○</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="page" id="dashboard">
+      <div style="padding:18px 26px 14px;background:#fff;border-bottom:1px solid #eee;font-size:17px;font-weight:700;color:#111;">Dashboard</div>
+      <div class="dash-scroll">
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-value amber">2</div><div class="stat-label">Due Today</div></div>
+          <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value violet">14</div><div class="stat-label">Active Items</div></div>
+          <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-value">7</div><div class="stat-label">Due in 14 days</div></div>
+          <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-value rose">1</div><div class="stat-label">Sync Failures</div></div>
+        </div>
+        <div class="two-col">
+          <div class="card">
+            <div class="card-title">📌 Upcoming Deadlines</div>
+            <div class="upcoming-row"><span class="days-badge urgent">2d</span><span class="upcoming-title">ANN Assignment 2</span><span class="badge badge-assignment">Assignment</span></div>
+            <div class="upcoming-row"><span class="days-badge urgent">4d</span><span class="upcoming-title">ANN Lab 2</span><span class="badge badge-lab">Lab</span></div>
+            <div class="upcoming-row"><span class="days-badge soon">6d</span><span class="upcoming-title">CN Lab 4</span><span class="badge badge-lab">Lab</span></div>
+            <div class="upcoming-row" style="border:none;"><span class="days-badge later">14d</span><span class="upcoming-title">ML Midsem Exam</span><span class="badge badge-exam">Exam</span></div>
+          </div>
+          <div class="card">
+            <div class="card-title">🕐 Recent Activity</div>
+            <div class="activity-item"><div class="activity-icon ai-import">📥</div><div class="activity-body"><div class="activity-text">Imported: ANN Assignment 2</div><div class="activity-time">2 min ago</div></div></div>
+            <div class="activity-item"><div class="activity-icon ai-sync">🔔</div><div class="activity-body"><div class="activity-text">Created reminder: ML Quiz 3</div><div class="activity-time">5 min ago</div></div></div>
+            <div class="activity-item"><div class="activity-icon ai-file">📁</div><div class="activity-body"><div class="activity-text">File moved: cn_lab4.pdf</div><div class="activity-time">1 hr ago</div></div></div>
+            <div class="activity-item" style="border:none;"><div class="activity-icon ai-dup">🛡</div><div class="activity-body"><div class="activity-text">Duplicate prevented: ANN Lab 2</div><div class="activity-time">2 hr ago</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="page" id="settings">
+      <div style="padding:18px 26px 14px;background:#fff;border-bottom:1px solid #eee;font-size:17px;font-weight:700;color:#111;">Settings</div>
+      <div class="settings-scroll">
+        <div class="settings-section">
+          <div class="section-head">📁 Storage Location</div>
+          <div class="settings-row">
+            <input class="text-input" style="flex:1;" value="~/Library/Mobile Documents/com~apple~CloudDocs/ALMS">
+            <button class="btn-primary" style="height:38px;font-size:13px;white-space:nowrap;">Browse…</button>
+          </div>
+          <div style="font-size:12px;color:#9ca3af;">Files are organized: Semester → Subject → Unit → Category</div>
+        </div>
+        <div class="settings-section">
+          <div class="section-head">🍎 Apple App Integration</div>
+          <div class="settings-row"><span class="settings-label">Reminders List</span><input class="text-input" style="flex:1;" value="ALMS"></div>
+          <div class="settings-row"><span class="settings-label">Calendar Name</span><input class="text-input" style="flex:1;" value="ALMS"></div>
+          <div class="settings-row"><span class="settings-label">Notes Folder</span><input class="text-input" style="flex:1;" value="ALMS"></div>
+          <div class="settings-row" style="margin:0;"><span class="settings-label">Notes Account</span><input class="text-input" style="flex:1;" value="iCloud"></div>
+        </div>
+        <div class="settings-section">
+          <div class="section-head">📚 Subjects — Semester 5</div>
+          <div class="subject-list">
+            <div class="subject-row"><span class="subject-code ann">ANN</span><span class="subject-name">Artificial Neural Networks</span><button class="btn-ghost">Archive</button></div>
+            <div class="subject-row"><span class="subject-code ml">ML</span><span class="subject-name">Machine Learning</span><button class="btn-ghost">Archive</button></div>
+            <div class="subject-row"><span class="subject-code cn">CN</span><span class="subject-name">Computer Networks</span><button class="btn-ghost">Archive</button></div>
+            <div class="subject-row"><span class="subject-code fla">FLA</span><span class="subject-name">Formal Language & Automata</span><button class="btn-ghost">Archive</button></div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;">
+          <button class="btn-primary">Save Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function showPage(page, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(page).classList.add('active');
+  el.classList.add('active');
+}
+</script>
+</body>
+</html>
