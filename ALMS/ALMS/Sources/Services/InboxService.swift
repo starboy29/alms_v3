@@ -42,9 +42,9 @@ struct InboxService {
         self.db = db
     }
 
-    func submitText(_ text: String) throws -> InboxResult {
+    func submitText(_ text: String) async throws -> InboxResult {
         let engine = MetadataEngine(db: db)
-        let metadata = try engine.extractFromText(text)
+        let metadata = try await engine.extractFromTextAsync(text)
 
         guard metadata.confidence != .low,
               let subjectId = metadata.subjectId,
@@ -88,7 +88,7 @@ struct InboxService {
         return InboxResult(itemId: item.id, needsConfirmation: false, metadata: meta)
     }
 
-    func submitFile(_ filePath: String, confirmedMetadata: ConfirmedMetadata? = nil) throws -> InboxResult {
+    func submitFile(_ filePath: String, confirmedMetadata: ConfirmedMetadata? = nil) async throws -> InboxResult {
         guard FileManager.default.fileExists(atPath: filePath) else {
             throw InboxError.fileNotFound(path: filePath)
         }
@@ -105,7 +105,7 @@ struct InboxService {
         } else {
             let engine = MetadataEngine(db: db)
             let filename = URL(fileURLWithPath: filePath).lastPathComponent
-            let metadata = try engine.extractFromFilename(filename)
+            let metadata = try await engine.extractFromFilenameAsync(filename)
 
             guard metadata.confidence != .low,
                   let subjectId = metadata.subjectId,

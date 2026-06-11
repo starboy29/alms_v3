@@ -27,8 +27,6 @@ struct RoutingEngine {
             }
             return targets
         case .notes:
-            // Notes routing is disabled (Apple Notes shortcut intentionally not installed) —
-            // capture note-type items as reminders so nothing is silently dropped.
             return [RoutingTarget(app: .reminders, action: .create, reason: "Notes type → reminder")]
         case .event:
             return [RoutingTarget(app: .calendar, action: .create, reason: "Event type")]
@@ -56,8 +54,6 @@ struct RoutingEngine {
                 try handleCalendar(item: item, calendarName: calendarName,
                                    sync: sync, logger: logger, now: now)
             case .notes, .finder:
-                // Notes routing is disabled (note-type items are routed to reminders in route()).
-                // Finder filing is handled natively at import time by InboxService/FinderService.
                 break
             }
         }

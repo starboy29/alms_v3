@@ -3,7 +3,6 @@ import XCTest
 
 final class RoutingEngineTests: XCTestCase {
     var db: ALMSDatabase!
-    var bridge: MockShortcutsBridge!
     var engine: RoutingEngine!
     var subjectId: String!
 
@@ -11,8 +10,7 @@ final class RoutingEngineTests: XCTestCase {
         super.setUp()
         do {
             db = try TestDatabase.make()
-            bridge = MockShortcutsBridge()
-            engine = RoutingEngine(db: db, bridge: bridge)
+            engine = RoutingEngine(db: db)
 
             let semRepo = SemesterRepository(db: db)
             let subRepo = SubjectRepository(db: db)
@@ -37,11 +35,11 @@ final class RoutingEngineTests: XCTestCase {
         XCTAssertTrue(apps.contains(.calendar))
     }
 
-    func testNotesTypeRoutesToNotes() throws {
+    func testNotesTypeRoutesToReminders() throws {
         let item = makeItem(type: .notes, dueDate: nil)
         let targets = engine.route(item: item)
         XCTAssertEqual(targets.count, 1)
-        XCTAssertEqual(targets[0].app, .notes)
+        XCTAssertEqual(targets[0].app, .reminders)
     }
 
     func testResourceTypeRoutesToNothing() throws {
@@ -50,27 +48,24 @@ final class RoutingEngineTests: XCTestCase {
         XCTAssertTrue(targets.isEmpty)
     }
 
-    func testExecuteCallsShortcutBridge() throws {
-        let item = makeItem(type: .assignment, dueDate: "2025-06-20")
-        try ItemRepository(db: db).insert(item)
+    func testPYQTypeRoutesToNothing() throws {
+        let item = makeItem(type: .pyq, dueDate: nil)
         let targets = engine.route(item: item)
-        try engine.execute(itemId: item.id, targets: targets)
-
-        let callNames = bridge.calls.map { $0.name }
-        XCTAssertTrue(callNames.contains("ALMS-CreateReminder"))
-        XCTAssertTrue(callNames.contains("ALMS-CreateCalendarEvent"))
+        XCTAssertTrue(targets.isEmpty)
     }
 
-    func testBridgeFailureSetsStatusToFailed() throws {
-        bridge.shouldFail = true
-        let item = makeItem(type: .assignment, dueDate: "2025-06-20")
-        try ItemRepository(db: db).insert(item)
+    func testEventTypeRoutesToCalendar() throws {
+        let item = makeItem(type: .event, dueDate: "2025-07-01")
         let targets = engine.route(item: item)
-        try engine.execute(itemId: item.id, targets: targets)
+        XCTAssertEqual(targets.count, 1)
+        XCTAssertEqual(targets[0].app, .calendar)
+    }
 
-        let sync = SyncLinkRepository(db: db)
-        let link = try sync.fetchReminderLink(itemId: item.id)
-        XCTAssertEqual(link?.status, SyncStatus.failed.rawValue)
+    func testAssignmentWithoutDueDateSkipsCalendar() throws {
+        let item = makeItem(type: .assignment, dueDate: nil)
+        let targets = engine.route(item: item)
+        XCTAssertEqual(targets.count, 1)
+        XCTAssertEqual(targets[0].app, .reminders)
     }
 
     private func makeItem(type: ItemType, dueDate: String?) -> Item {

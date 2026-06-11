@@ -59,22 +59,24 @@ struct QuickEntryView: View {
         guard !trimmed.isEmpty else { onDismiss(); return }
 
         status = .processing
-        do {
-            let result = try InboxService(db: db).submitText(trimmed)
-            if result.needsConfirmation {
-                NotificationCenter.default.post(
-                    name: .quickEntryNeedsConfirmation,
-                    object: trimmed
-                )
-                onDismiss()
-            } else {
-                text = ""
-                status = .success
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { onDismiss() }
-            }
-        } catch {
-            status = .error(error.localizedDescription)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+        Task { @MainActor in
+            do {
+                let result = try await InboxService(db: db).submitText(trimmed)
+                if result.needsConfirmation {
+                    NotificationCenter.default.post(
+                        name: .quickEntryNeedsConfirmation,
+                        object: trimmed
+                    )
+                    onDismiss()
+                } else {
+                    text = ""
+                    status = .success
+                    try? await Task.sleep(for: .milliseconds(700))
+                    onDismiss()
+                }
+            } catch {
+                status = .error(error.localizedDescription)
+                try? await Task.sleep(for: .milliseconds(2500))
                 status = .idle
             }
         }

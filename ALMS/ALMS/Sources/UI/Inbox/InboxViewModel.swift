@@ -35,53 +35,59 @@ final class InboxViewModel {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         isProcessing = true
-        defer { isProcessing = false }
-        do {
-            let result = try service.submitText(text)
-            if result.needsConfirmation {
-                pendingMetadata = result.metadata
-                showConfirmation = true
-            } else {
-                inputText = ""
-                loadRecentItems()
+        Task { @MainActor in
+            defer { isProcessing = false }
+            do {
+                let result = try await service.submitText(text)
+                if result.needsConfirmation {
+                    pendingMetadata = result.metadata
+                    showConfirmation = true
+                } else {
+                    inputText = ""
+                    loadRecentItems()
+                }
+            } catch {
+                showErrorMessage(error.localizedDescription)
             }
-        } catch {
-            showErrorMessage(error.localizedDescription)
         }
     }
 
     func handleDroppedFile(at path: String) {
         isProcessing = true
-        defer { isProcessing = false }
-        do {
-            let result = try service.submitFile(path)
-            if result.needsConfirmation {
-                pendingMetadata = result.metadata
-                pendingFilePath = path
-                showConfirmation = true
-            } else {
-                loadRecentItems()
+        Task { @MainActor in
+            defer { isProcessing = false }
+            do {
+                let result = try await service.submitFile(path)
+                if result.needsConfirmation {
+                    pendingMetadata = result.metadata
+                    pendingFilePath = path
+                    showConfirmation = true
+                } else {
+                    loadRecentItems()
+                }
+            } catch InboxError.duplicateFile(_) {
+                showErrorMessage("This file has already been imported.")
+            } catch {
+                showErrorMessage(error.localizedDescription)
             }
-        } catch InboxError.duplicateFile(_) {
-            showErrorMessage("This file has already been imported.")
-        } catch {
-            showErrorMessage(error.localizedDescription)
         }
     }
 
     func confirmMetadata(_ confirmed: ConfirmedMetadata) {
         isProcessing = true
-        defer { isProcessing = false }
-        do {
-            if let path = pendingFilePath {
-                _ = try service.submitFile(path, confirmedMetadata: confirmed)
-            } else {
-                _ = try service.submitConfirmedText(confirmed)
+        Task { @MainActor in
+            defer { isProcessing = false }
+            do {
+                if let path = pendingFilePath {
+                    _ = try await service.submitFile(path, confirmedMetadata: confirmed)
+                } else {
+                    _ = try service.submitConfirmedText(confirmed)
+                }
+                reset()
+                loadRecentItems()
+            } catch {
+                showErrorMessage(error.localizedDescription)
             }
-            reset()
-            loadRecentItems()
-        } catch {
-            showErrorMessage(error.localizedDescription)
         }
     }
 

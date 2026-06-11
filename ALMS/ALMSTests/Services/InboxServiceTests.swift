@@ -3,7 +3,6 @@ import XCTest
 
 final class InboxServiceTests: XCTestCase {
     var db: ALMSDatabase!
-    var bridge: MockShortcutsBridge!
     var service: InboxService!
     var subjectId: String!
     var tempDir: String!
@@ -12,8 +11,7 @@ final class InboxServiceTests: XCTestCase {
         super.setUp()
         do {
             db = try TestDatabase.make()
-            bridge = MockShortcutsBridge()
-            service = InboxService(db: db, bridge: bridge)
+            service = InboxService(db: db)
 
             tempDir = NSTemporaryDirectory() + "ALMSInboxTests-\(UUID().uuidString)"
             try FileManager.default.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
@@ -41,8 +39,8 @@ final class InboxServiceTests: XCTestCase {
         try? FileManager.default.removeItem(atPath: tempDir)
     }
 
-    func testSubmitTextWithHighConfidenceCreatesItem() throws {
-        let result = try service.submitText("ANN Assignment 2 due 2025-06-20")
+    func testSubmitTextWithHighConfidenceCreatesItem() async throws {
+        let result = try await service.submitText("ANN Assignment 2 due 2025-06-20")
         XCTAssertFalse(result.needsConfirmation)
         XCTAssertFalse(result.itemId.isEmpty)
 
@@ -52,27 +50,24 @@ final class InboxServiceTests: XCTestCase {
         XCTAssertEqual(item?.dueDate, "2025-06-20")
     }
 
-    func testSubmitTextWithLowConfidenceNeedsConfirmation() throws {
-        let result = try service.submitText("random stuff here")
+    func testSubmitTextWithLowConfidenceNeedsConfirmation() async throws {
+        let result = try await service.submitText("random stuff here")
         XCTAssertTrue(result.needsConfirmation)
         XCTAssertTrue(result.itemId.isEmpty)
     }
 
-    func testSubmitTextCallsShortcutBridge() throws {
-        _ = try service.submitText("ANN Assignment 2 due 2025-06-20")
-        XCTAssertTrue(bridge.calls.contains { $0.name == "ALMS-CreateReminder" })
-    }
-
-    func testSubmitFileNotFoundThrows() throws {
-        XCTAssertThrowsError(try service.submitFile("/nonexistent/path.pdf")) { error in
-            guard case InboxError.fileNotFound = error else {
-                XCTFail("Expected fileNotFound, got \(error)")
-                return
-            }
+    func testSubmitFileNotFoundThrows() async {
+        do {
+            _ = try await service.submitFile("/nonexistent/path.pdf")
+            XCTFail("Expected fileNotFound error")
+        } catch InboxError.fileNotFound {
+            // expected
+        } catch {
+            XCTFail("Expected fileNotFound, got \(error)")
         }
     }
 
-    func testSubmitFileWithConfirmedMetadata() throws {
+    func testSubmitFileWithConfirmedMetadata() async throws {
         let srcPath = tempDir + "/ann_assignment.pdf"
         try "PDF content".write(toFile: srcPath, atomically: true, encoding: .utf8)
 
@@ -82,7 +77,7 @@ final class InboxServiceTests: XCTestCase {
             dueDate: "2025-06-20", priority: .medium
         )
 
-        let result = try service.submitFile(srcPath, confirmedMetadata: confirmed)
+        let result = try await service.submitFile(srcPath, confirmedMetadata: confirmed)
         XCTAssertFalse(result.needsConfirmation)
         XCTAssertFalse(result.itemId.isEmpty)
 
