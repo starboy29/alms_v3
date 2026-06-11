@@ -6,6 +6,9 @@ enum DateParser {
         let calendar = Calendar.current
         let today = Date()
 
+        if lower.contains("day after tomorrow") {
+            return iso8601Date(from: calendar.date(byAdding: .day, value: 2, to: today)!)
+        }
         if lower.contains("tomorrow") {
             return iso8601Date(from: calendar.date(byAdding: .day, value: 1, to: today)!)
         }

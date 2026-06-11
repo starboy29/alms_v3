@@ -16,6 +16,15 @@ struct ConfirmedMetadata {
     let title: String
     let dueDate: String?
     let priority: ItemPriority
+    let customFolderName: String?
+
+    init(subjectId: String, unitId: String?, categoryId: String?,
+         type: ItemType, title: String, dueDate: String?,
+         priority: ItemPriority, customFolderName: String? = nil) {
+        self.subjectId = subjectId; self.unitId = unitId; self.categoryId = categoryId
+        self.type = type; self.title = title; self.dueDate = dueDate
+        self.priority = priority; self.customFolderName = customFolderName
+    }
 }
 
 enum InboxError: LocalizedError {
@@ -40,6 +49,17 @@ struct InboxService {
 
     init(db: ALMSDatabase) {
         self.db = db
+    }
+
+    func validateFile(_ filePath: String) throws {
+        guard FileManager.default.fileExists(atPath: filePath) else {
+            throw InboxError.fileNotFound(path: filePath)
+        }
+        let sha256 = try computeSHA256(at: filePath)
+        let dupeCheck = try DuplicateGuard(db: db).checkFile(sha256: sha256)
+        if dupeCheck.isDuplicate {
+            throw InboxError.duplicateFile(existingFileId: dupeCheck.existingFileId)
+        }
     }
 
     func submitText(_ text: String) async throws -> InboxResult {
@@ -137,7 +157,7 @@ struct InboxService {
             semester: semesterName,
             subjectCode: subjectCode,
             unitName: unitName,
-            categoryName: confirmed.type.folderName
+            categoryName: confirmed.customFolderName ?? confirmed.type.folderName
         )
         let originalFilename = URL(fileURLWithPath: filePath).lastPathComponent
         let ext = URL(fileURLWithPath: originalFilename).pathExtension

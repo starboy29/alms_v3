@@ -17,6 +17,7 @@ final class QuickEntryManager: NSObject {
     }
 
     func setup() {
+        guard hotKey == nil else { return }
         GlobalHotKey.onFire = { [weak self] in
             DispatchQueue.main.async { self?.toggle() }
         }

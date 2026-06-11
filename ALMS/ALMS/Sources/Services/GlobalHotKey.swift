@@ -29,14 +29,20 @@ final class GlobalHotKey {
             carbonHotKeyHandler,
             1, &spec, nil, &eventHandlerRef
         )
-        guard handlerErr == noErr else { return nil }
+        guard handlerErr == noErr else {
+            print("[GlobalHotKey] InstallEventHandler failed: \(handlerErr)")
+            return nil
+        }
 
         var hotKeyID = EventHotKeyID(signature: 0x414C_4D53, id: 1) // 'ALMS'
         let registerErr = RegisterEventHotKey(
             keyCode, modifiers, hotKeyID,
             GetApplicationEventTarget(), 0, &hotKeyRef
         )
-        guard registerErr == noErr else { return nil }
+        guard registerErr == noErr else {
+            print("[GlobalHotKey] RegisterEventHotKey failed: \(registerErr) — another app may own ⌃⌥Space")
+            return nil
+        }
     }
 
     deinit {
