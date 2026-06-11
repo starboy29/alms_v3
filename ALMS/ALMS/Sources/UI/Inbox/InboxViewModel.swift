@@ -16,6 +16,9 @@ final class InboxViewModel {
     var pendingMetadata: ExtractedMetadata?
     var pendingFilePath: String?
     var showConfirmation = false
+    var showFileDescription = false
+    var pendingFileDescriptionPath: String?
+    var pendingReviewInterpretation: FileInterpretation?
     var errorMessage: String?
     var showError = false
     var isDragTargeted = false
@@ -57,20 +60,56 @@ final class InboxViewModel {
         Task { @MainActor in
             defer { isProcessing = false }
             do {
-                let result = try await service.submitFile(path)
-                if result.needsConfirmation {
-                    pendingMetadata = result.metadata
-                    pendingFilePath = path
-                    showConfirmation = true
-                } else {
-                    loadRecentItems()
-                }
+                try service.validateFile(path)
+                pendingFileDescriptionPath = path
+                showFileDescription = true
             } catch InboxError.duplicateFile(_) {
                 showErrorMessage("This file has already been imported.")
             } catch {
                 showErrorMessage(error.localizedDescription)
             }
         }
+    }
+
+    func submitFileWithDescription(_ description: String) {
+        guard let path = pendingFileDescriptionPath else { return }
+        isProcessing = true
+        Task { @MainActor in
+            defer { isProcessing = false }
+            do {
+                let interp = try await getFileInterpretation(path: path, description: description)
+                if interp.isUnsure {
+                    pendingReviewInterpretation = interp
+                } else {
+                    try await fileWithInterpretation(path: path, interp: interp)
+                }
+            } catch {
+                showErrorMessage(error.localizedDescription)
+            }
+        }
+    }
+
+    func confirmReviewAndFile(_ interp: FileInterpretation) {
+        guard let path = pendingFileDescriptionPath else { return }
+        isProcessing = true
+        Task { @MainActor in
+            defer { isProcessing = false }
+            do {
+                try await fileWithInterpretation(path: path, interp: interp)
+            } catch {
+                showErrorMessage(error.localizedDescription)
+            }
+        }
+    }
+
+    func clearReview() {
+        pendingReviewInterpretation = nil
+    }
+
+    func cancelFileDescription() {
+        showFileDescription = false
+        pendingFileDescriptionPath = nil
+        pendingReviewInterpretation = nil
     }
 
     func confirmMetadata(_ confirmed: ConfirmedMetadata) {
@@ -124,7 +163,6 @@ final class InboxViewModel {
         let subjectRepo = SubjectRepository(db: db)
         let unitRepo = UnitRepository(db: db)
 
-        // Batch-resolve unique subject and unit IDs to avoid N+1 queries.
         var subjectMap: [String: String] = [:]
         for id in Set(items.map(\.subjectId)) {
             if let s = try? subjectRepo.fetchById(id) {
@@ -145,6 +183,125 @@ final class InboxViewModel {
                 unitName: item.unitId.flatMap { unitMap[$0] }
             )
         }
+    }
+
+    // MARK: - Private
+
+    private func fileWithInterpretation(path: String, interp: FileInterpretation) async throws {
+        let subjectId = try findOrCreateSubject(code: interp.subjectCode, name: interp.subjectName)
+        let unitId: String? = interp.unitName.isEmpty
+            ? nil
+            : (try? findOrCreateUnit(name: interp.unitName, subjectId: subjectId))
+        let filename = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+        let confirmed = ConfirmedMetadata(
+            subjectId: subjectId,
+            unitId: unitId,
+            categoryId: nil,
+            type: .notes,
+            title: interp.title.isEmpty ? filename : interp.title,
+            dueDate: nil,
+            priority: .medium,
+            customFolderName: interp.folderName.isEmpty ? nil : interp.folderName
+        )
+        _ = try await service.submitFile(path, confirmedMetadata: confirmed)
+        showFileDescription = false
+        pendingFileDescriptionPath = nil
+        pendingReviewInterpretation = nil
+        loadRecentItems()
+    }
+
+    private func getFileInterpretation(path: String, description: String) async throws -> FileInterpretation {
+        let filename = URL(fileURLWithPath: path).lastPathComponent
+        let semesterRepo = SemesterRepository(db: db)
+        let subjectRepo = SubjectRepository(db: db)
+        var subjects: [Subject] = []
+        if let semester = try? semesterRepo.fetchActive() {
+            subjects = (try? subjectRepo.fetchAll(semesterId: semester.id, includeArchived: false)) ?? []
+        }
+
+        #if canImport(FoundationModels)
+        if #available(macOS 26, *), AIMetadataEngine.isAvailable {
+            if let result = try? await AIMetadataEngine().extractFromFileDescription(
+                filename: filename, description: description, subjects: subjects
+            ) {
+                return result
+            }
+        }
+        #endif
+
+        // Fallback: regex extraction — always mark unsure so the user confirms
+        let extracted = try await MetadataEngine(db: db).extractFromTextAsync(description)
+        let matched = subjects.first { $0.id == extracted.subjectId }
+        return FileInterpretation(
+            subjectCode: matched?.code ?? extracted.subjectCode ?? "",
+            subjectName: matched?.name ?? "",
+            unitName: "",
+            folderName: "Notes",
+            title: extracted.title ?? filename,
+            isUnsure: true
+        )
+    }
+
+    private func findOrCreateSubject(code: String, name: String) throws -> String {
+        let semesterRepo = SemesterRepository(db: db)
+        guard let semester = try semesterRepo.fetchActive() else {
+            throw InboxError.metadataRequired
+        }
+        let subjectRepo = SubjectRepository(db: db)
+        let trimmedCode = code.trimmingCharacters(in: .whitespaces)
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+
+        if !trimmedCode.isEmpty,
+           let existing = try subjectRepo.fetchByCode(trimmedCode, semesterId: semester.id) {
+            return existing.id
+        }
+
+        let all = try subjectRepo.fetchAll(semesterId: semester.id, includeArchived: false)
+        if !trimmedName.isEmpty,
+           let existing = all.first(where: { $0.name.lowercased() == trimmedName.lowercased() }) {
+            return existing.id
+        }
+
+        guard !trimmedName.isEmpty || !trimmedCode.isEmpty else {
+            throw InboxError.metadataRequired
+        }
+
+        let now = ISO8601DateFormatter().string(from: Date())
+        let subject = Subject(
+            id: UUID().uuidString,
+            semesterId: semester.id,
+            name: trimmedName.isEmpty ? trimmedCode : trimmedName,
+            code: trimmedCode.isEmpty ? nil : trimmedCode,
+            color: nil,
+            archived: false,
+            sortOrder: all.count,
+            createdAt: now,
+            updatedAt: now
+        )
+        try subjectRepo.insert(subject)
+        return subject.id
+    }
+
+    private func findOrCreateUnit(name: String, subjectId: String) throws -> String {
+        let unitRepo = UnitRepository(db: db)
+        let existing = try unitRepo.fetchAll(subjectId: subjectId)
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+
+        if let found = existing.first(where: { $0.name.lowercased() == trimmed.lowercased() }) {
+            return found.id
+        }
+
+        let now = ISO8601DateFormatter().string(from: Date())
+        let unit = ALMSUnit(
+            id: UUID().uuidString,
+            subjectId: subjectId,
+            name: trimmed,
+            number: existing.count + 1,
+            createdAt: now,
+            updatedAt: now
+        )
+        try unitRepo.insert(unit)
+        return unit.id
     }
 
     private func reset() {

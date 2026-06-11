@@ -15,12 +15,16 @@ ANN Assignment 2 due June 20
 
 ALMS detects **Subject = ANN**, **Type = Assignment**, **Due = June 20**, then:
 
-- Files the item into `Root / Semester 5 / ANN / Unit 1 / Assignments /`
-- Creates a Reminder in your **Inbox** list with tags `#ANN #assignment #ALMS` and a 9am due-date alarm
-- Creates a Calendar event via Apple Shortcuts
+- Renames and files the item into `Root / Semester 5 / ANN / Unit 1 / Assignments /`
+- Creates a Reminder in your **Inbox** list with `#ANN #assignment #ALMS` smart tags and a 9am due-date alarm (EventKit)
+- Creates a Calendar event via the `ALMS-CreateCalendarEvent` shortcut
+- Indexes the item in Spotlight so you can find it with Cmd+Space
+- Sends a macOS notification confirming the item was filed
 - Logs everything to SQLite and updates the Dashboard
 
 You never touch Finder, Reminders, or Calendar directly.
+
+Press **Control+Option+Space** from any app to open the Quick Entry panel without switching to ALMS.
 
 ---
 
@@ -80,26 +84,30 @@ The semester, subject, chapter/unit, and type are all set during import via the 
 ## Architecture
 
 ```
-Universal Inbox (drag-and-drop / text)
+Universal Inbox (drag-and-drop / text / Quick Entry hotkey)
         ↓
   Metadata Engine
-  (subject / type / due-date detection)
+  (AI via Apple Intelligence + regex fallback)
         ↓
    SQLite Database (GRDB)
         ↓
    Routing Engine
-   ├── FinderService  →  files PDFs into Semester/Subject/Unit/Type
-   ├── RemindersService (EventKit)  →  Inbox list, due date, smart tags
-   └── ShortcutsBridge  →  ALMS-CreateCalendarEvent shortcut
+   ├── FinderService      →  files into Root/Semester/Subject/Unit/Type, renames to "{Code} - {Title}.ext"
+   ├── RemindersService   →  EventKit — Inbox list, real due date, #hashtag smart tags in title
+   ├── CalendarService    →  EventKit — calendar event with due date
+   ├── SpotlightService   →  CoreSpotlight indexing for system-wide search
+   └── NotificationService →  UNUserNotificationCenter — fires on file filed / reminder / event created
 ```
 
 **Key technical decisions:**
 
 - **Native Swift + SwiftUI** — deepest Apple integration, lightest binary
 - **GRDB.swift** — type-safe SQLite with migration support
-- **EventKit for Reminders** — chosen over Shortcuts because the `Add New Reminder` shortcut action on Tahoe cannot set a due date or choose a specific list reliably; EventKit does both natively
+- **EventKit for both Reminders and Calendar** — `Add New Reminder` and Calendar shortcuts on Tahoe cannot reliably set due dates or pick lists; EventKit does both natively
+- **Apple Intelligence / FoundationModels** — used for metadata extraction on macOS 26+; falls back to regex on earlier versions
 - **Security-scoped bookmarks** — sandbox-safe write access to the user's chosen root folder across launches
 - **Title-embedded `#hashtags`** — the only way to create real smart-stackable Reminders tags programmatically on Tahoe (notes-field hashtags are not parsed by the Reminders app)
+- **Carbon `RegisterEventHotKey`** — global hotkey (Control+Option+Space) for the Quick Entry panel, invokable from any app
 
 ---
 
@@ -122,23 +130,25 @@ ALMS/
         │   ├── RoutingEngine.swift      — decides which integrations to call
         │   ├── FinderService.swift      — path building + security-scoped file moves
         │   ├── RemindersService.swift   — EventKit reminder creation
-        │   ├── ShortcutsBridge.swift    — runs Apple Shortcuts via shell
-        │   ├── ShortcutFileGenerator.swift — generates .shortcut plist + install script
-        │   ├── ShortcutsVerifier.swift  — checks required shortcuts exist
+        │   ├── CalendarService.swift    — EventKit calendar event creation
+        │   ├── SpotlightService.swift   — CoreSpotlight indexing
+        │   ├── NotificationService.swift — UNUserNotificationCenter notifications
+        │   ├── GlobalHotKey.swift       — Carbon RegisterEventHotKey for quick entry
         │   ├── DuplicateGuard.swift     — SHA-256 file dedup
         │   └── Metadata/
-        │       ├── MetadataEngine.swift — subject/type/date extraction
+        │       ├── AIMetadataEngine.swift  — Apple Intelligence / FoundationModels NLP
+        │       ├── MetadataEngine.swift    — regex-based subject/type/date extraction
         │       ├── SubjectMatcher.swift
         │       ├── DateParser.swift
         │       └── ExtractedMetadata.swift
         └── UI/
             ├── AppState.swift
             ├── SidebarView.swift
-            ├── Inbox/                   — InboxView, InboxViewModel, MetadataConfirmationSheet
-            ├── Dashboard/               — DashboardView, DashboardViewModel
+            ├── Inbox/                   — InboxView, InboxViewModel, MetadataConfirmationSheet, FileDescriptionSheet
+            ├── Dashboard/               — DashboardView, DashboardViewModel, SyncIssuesView
             ├── Settings/                — SettingsView, SettingsViewModel
-            ├── Setup/                   — SetupWizardView, SetupWizardViewModel
-            └── Components/              — SubjectPill, TypeBadge, ItemRowView
+            ├── QuickEntry/              — QuickEntryView, QuickEntryManager
+            └── Components/              — SubjectPill, TypeBadge, ItemRowView, ItemDetailView, View+Glass
 ```
 
 ---
@@ -152,7 +162,7 @@ ALMS is a sandboxed macOS app. It requests:
 | `files.user-selected.read-write` | Write filed PDFs into your chosen folder |
 | `files.bookmarks.app-scope` | Remember the folder across launches without re-prompting |
 | `personal-information.reminders` | Create reminders via EventKit |
-| `personal-information.calendars` | Required by EventKit even for reminders (CalendarAgent mach-lookup) |
+| `personal-information.calendars` | Calendar event creation via EventKit; also required for Reminders (both share the CalendarAgent daemon) |
 
 ---
 
@@ -160,7 +170,9 @@ ALMS is a sandboxed macOS app. It requests:
 
 One shortcut is required: **ALMS-CreateCalendarEvent**
 
-The Setup Wizard generates an unsigned `.shortcut` file and a Terminal script. Running the script signs it (Terminal is not sandboxed) and installs it silently. You do not need to do this manually.
+Reminders are created entirely via EventKit — no shortcut needed. The calendar shortcut creates an event with the correct date and title.
+
+ALMS generates an unsigned `.shortcut` file and a Terminal install script. Running the script from Terminal signs and installs it silently. You do not need to do this manually — the Settings screen provides the one-click path.
 
 > **Why not just import the shortcut?** macOS only accepts *signed* shortcut files, and a sandboxed app cannot call `shortcuts sign` (Keychain denied). The Terminal workaround is the only reliable install path.
 
@@ -168,22 +180,25 @@ The Setup Wizard generates an unsigned `.shortcut` file and a Terminal script. R
 
 ## Roadmap
 
-**Phase 2**
-- [ ] Subject management UI (add / rename / archive subjects in-app)
-- [ ] Sync status panel (retry failed Reminders/Calendar syncs)
-- [ ] Unified search (files, reminders, calendar events, notes)
+**Implemented in v1**
+- [x] Subject and semester management UI
+- [x] Sync issues panel with per-item retry
+- [x] AI classification via Apple Intelligence (macOS 26+)
+- [x] Global Quick Entry hotkey (Control+Option+Space)
+- [x] Spotlight indexing for system-wide search
 
-**Phase 3**
+**Backlog**
+- [ ] Unified search inside the ALMS UI
 - [ ] OCR for images and scanned PDFs
-- [ ] AI classification (auto-suggest subject/type/due date)
 - [ ] Voice capture
+- [ ] Semester archive workflow
 - [ ] iPhone Quick Capture via Shortcuts share extension
 
 ---
 
 ## Design Docs
 
-The `docs/` directory at the root of this repo contains the full design documentation written before implementation:
+The following design documents live at the project root:
 
 | File | Contents |
 |---|---|

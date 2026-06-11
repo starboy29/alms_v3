@@ -56,6 +56,19 @@ private struct InboxContentView: View {
                 )
             }
         }
+        .sheet(isPresented: $vm.showFileDescription, onDismiss: { vm.cancelFileDescription() }) {
+            if let path = vm.pendingFileDescriptionPath {
+                FileDescriptionSheet(
+                    filename: URL(fileURLWithPath: path).lastPathComponent,
+                    isProcessing: vm.isProcessing,
+                    reviewInterpretation: vm.pendingReviewInterpretation,
+                    onSubmit: { vm.submitFileWithDescription($0) },
+                    onConfirmReview: { vm.confirmReviewAndFile($0) },
+                    onBack: { vm.clearReview() },
+                    onCancel: { vm.cancelFileDescription() }
+                )
+            }
+        }
         .alert("Error", isPresented: $vm.showError) {
             Button("OK") { vm.showError = false }
         } message: {

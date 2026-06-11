@@ -69,9 +69,6 @@ final class SettingsViewModel {
         panel.prompt = "Select Root Folder"
         if panel.runModal() == .OK, let url = panel.url {
             rootFolder = url.path
-            // Persist a security-scoped bookmark so the sandbox keeps write access to this
-            // folder across app launches — storing only the path would lose the grant on relaunch.
-            FinderService.saveRootBookmark(for: url)
         }
     }
 
