@@ -131,15 +131,18 @@ struct InboxService {
             unitName = unit.name
         }
 
+        let subjectCode = subject?.code?.isEmpty == false ? subject!.code! : subject?.name ?? confirmed.subjectId
         let finder = FinderService(db: db)
         let destFolder = try finder.buildPath(
             semester: semesterName,
-            subjectCode: subject?.code ?? subject?.name ?? confirmed.subjectId,
+            subjectCode: subjectCode,
             unitName: unitName,
             categoryName: confirmed.type.folderName
         )
-        let filename = URL(fileURLWithPath: filePath).lastPathComponent
-        let destPath = destFolder + "/" + filename
+        let originalFilename = URL(fileURLWithPath: filePath).lastPathComponent
+        let ext = URL(fileURLWithPath: originalFilename).pathExtension
+        let storedFilename = buildStoredName(subjectCode: subjectCode, title: confirmed.title, ext: ext)
+        let destPath = uniqueDestPath(destFolder + "/" + storedFilename)
 
         let finalPath = try finder.moveFile(from: filePath, to: destPath)
 
@@ -156,12 +159,12 @@ struct InboxService {
         let now = ISO8601DateFormatter().string(from: Date())
         let attrs = try? FileManager.default.attributesOfItem(atPath: finalPath)
         let fileSize = attrs?[.size] as? Int ?? 0
-        let mimeType = UTType(filenameExtension: URL(fileURLWithPath: filename).pathExtension)?
-            .preferredMIMEType
+        let mimeType = UTType(filenameExtension: ext.isEmpty ? "pdf" : ext)?.preferredMIMEType
 
+        let actualStoredName = URL(fileURLWithPath: finalPath).lastPathComponent
         let fileRecord = ALMSFile(
             id: UUID().uuidString, itemId: item.id,
-            originalName: filename, storedName: filename,
+            originalName: originalFilename, storedName: actualStoredName,
             storedPath: finalPath, fileHash: sha256,
             fileSize: fileSize, mimeType: mimeType,
             finderVerified: true, createdAt: now, updatedAt: now
@@ -172,6 +175,9 @@ struct InboxService {
         let logger = ActivityLogRepository(db: db)
         logger.log(eventType: .fileMove, entityId: fileRecord.id,
                    details: "File moved to \(finalPath)")
+
+        let folderLabel = URL(fileURLWithPath: finalPath).deletingLastPathComponent().lastPathComponent
+        NotificationService.send(title: "File Filed", body: "\(actualStoredName) → \(folderLabel)")
 
         try routeItem(item)
         SpotlightService().index(item, db: db)
@@ -213,6 +219,28 @@ struct InboxService {
         let routing = RoutingEngine(db: db)
         let targets = routing.route(item: item)
         try routing.execute(itemId: item.id, targets: targets)
+    }
+
+    private func buildStoredName(subjectCode: String, title: String, ext: String) -> String {
+        let base = "\(subjectCode) - \(title)"
+        let invalid = CharacterSet(charactersIn: "/:\\*?\"<>|")
+        let safe = String(base.unicodeScalars.map { invalid.contains($0) ? "-" : Character($0) })
+        let trimmed = safe.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ext.isEmpty ? trimmed : "\(trimmed).\(ext)"
+    }
+
+    private func uniqueDestPath(_ desired: String) -> String {
+        guard FileManager.default.fileExists(atPath: desired) else { return desired }
+        let url = URL(fileURLWithPath: desired)
+        let ext = url.pathExtension
+        let base = url.deletingPathExtension().path
+        var counter = 2
+        while counter < 100 {
+            let candidate = ext.isEmpty ? "\(base) (\(counter))" : "\(base) (\(counter)).\(ext)"
+            if !FileManager.default.fileExists(atPath: candidate) { return candidate }
+            counter += 1
+        }
+        return desired
     }
 
     private func computeSHA256(at path: String) throws -> String {

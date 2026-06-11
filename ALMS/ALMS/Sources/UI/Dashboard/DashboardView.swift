@@ -96,9 +96,7 @@ private struct DashboardContentView: View {
                     }
                 }
             }
-            .background(.background)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.secondary.opacity(0.15)))
+            .glassCard(cornerRadius: 10)
         }
     }
 
@@ -113,8 +111,7 @@ private struct DashboardContentView: View {
                     .font(.callout)
                     .padding()
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.background)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .glassCard(cornerRadius: 10)
             } else {
                 VStack(spacing: 0) {
                     ForEach(vm.recentActivity.prefix(12), id: \.id) { log in
@@ -139,9 +136,7 @@ private struct DashboardContentView: View {
                         }
                     }
                 }
-                .background(.background)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.secondary.opacity(0.15)))
+                .glassCard(cornerRadius: 10)
             }
         }
     }
@@ -213,8 +208,6 @@ private struct StatCard: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.secondary.opacity(0.15)))
+        .glassCard(cornerRadius: 12)
     }
 }

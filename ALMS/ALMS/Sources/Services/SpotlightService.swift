@@ -48,24 +48,29 @@ struct SpotlightService {
         let subjectRepo = SubjectRepository(db: db)
         let unitRepo = UnitRepository(db: db)
 
-        var searchItems: [CSSearchableItem] = []
-        for item in items {
-            let subject = (try? subjectRepo.fetchById(item.subjectId)) ?? nil
-            let subjectCode = subject.flatMap { s -> String? in
-                s.code?.isEmpty == false ? s.code : s.name
+        // Batch-resolve subjects and units to avoid N+1 DB queries.
+        var subjectMap: [String: String] = [:]
+        for id in Set(items.map(\.subjectId)) {
+            if let s = (try? subjectRepo.fetchById(id)) ?? nil {
+                subjectMap[id] = s.code?.isEmpty == false ? s.code! : s.name
             }
-            let unit = item.unitId.flatMap { id in
-                (try? unitRepo.fetchById(id)) ?? nil
+        }
+        var unitMap: [String: String] = [:]
+        for id in Set(items.compactMap(\.unitId)) {
+            if let u = (try? unitRepo.fetchById(id)) ?? nil {
+                unitMap[id] = u.name
             }
+        }
 
+        let searchItems: [CSSearchableItem] = items.map { item in
+            let subjectCode = subjectMap[item.subjectId]
             let attrs = CSSearchableItemAttributeSet(contentType: .text)
             attrs.title = subjectCode.map { "\($0): \(item.title)" } ?? item.title
 
             var descParts = [item.type.capitalized]
-            if let u = unit { descParts.append(u.name) }
+            if let unitName = item.unitId.flatMap({ unitMap[$0] }) { descParts.append(unitName) }
             if let due = item.dueDate { descParts.append("Due \(due)") }
             attrs.contentDescription = descParts.joined(separator: " · ")
-
             attrs.keywords = [item.type, subjectCode].compactMap { $0 }
 
             let searchItem = CSSearchableItem(
@@ -74,7 +79,7 @@ struct SpotlightService {
                 attributeSet: attrs
             )
             searchItem.expirationDate = .distantFuture
-            searchItems.append(searchItem)
+            return searchItem
         }
 
         CSSearchableIndex.default().indexSearchableItems(searchItems) { _ in }

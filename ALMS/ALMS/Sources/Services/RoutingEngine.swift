@@ -103,6 +103,7 @@ struct RoutingEngine {
             try sync.updateReminderLinkStatus(itemId: item.id, status: .created, error: nil)
             logger.log(eventType: .routed, entityId: item.id,
                        details: "Created reminder: \(reminderTitle)")
+            NotificationService.send(title: "Reminder Created", body: reminderTitle)
         } catch {
             try sync.updateReminderLinkStatus(itemId: item.id, status: .failed,
                                               error: error.localizedDescription)
@@ -167,6 +168,7 @@ struct RoutingEngine {
             try sync.updateCalendarLinkStatus(itemId: item.id, status: .created, error: nil)
             logger.log(eventType: .routed, entityId: item.id,
                        details: "Created calendar event: \(eventTitle)")
+            NotificationService.send(title: "Event Added", body: "\(eventTitle) · \(typeCalendar)")
         } catch {
             try sync.updateCalendarLinkStatus(itemId: item.id, status: .failed,
                                               error: error.localizedDescription)

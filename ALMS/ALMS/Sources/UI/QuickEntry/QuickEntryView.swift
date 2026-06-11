@@ -13,39 +13,34 @@ struct QuickEntryView: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 14)
-                .fill(.regularMaterial)
-                .shadow(color: .black.opacity(0.3), radius: 24, x: 0, y: 10)
+        HStack(spacing: 14) {
+            Image(systemName: status.iconName)
+                .foregroundStyle(status.iconColor)
+                .font(.system(size: 20, weight: .medium))
+                .animation(.easeInOut(duration: 0.15), value: status.iconName)
+                .frame(width: 24)
 
-            HStack(spacing: 14) {
-                Image(systemName: status.iconName)
-                    .foregroundStyle(status.iconColor)
-                    .font(.system(size: 20, weight: .medium))
-                    .animation(.easeInOut(duration: 0.15), value: status.iconName)
-                    .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                TextField("Add to ALMS…", text: $text)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 16))
+                    .focused($focused)
+                    .disabled(status.isProcessing)
+                    .onSubmit { submit() }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    TextField("Add to ALMS…", text: $text)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 16))
-                        .focused($focused)
-                        .disabled(status.isProcessing)
-                        .onSubmit { submit() }
-
-                    Text(status.hint)
-                        .font(.system(size: 11))
-                        .foregroundStyle(status.hintColor)
-                        .animation(.easeInOut(duration: 0.15), value: status.hint)
-                }
-
-                if status.isProcessing {
-                    ProgressView().controlSize(.small)
-                }
+                Text(status.hint)
+                    .font(.system(size: 11))
+                    .foregroundStyle(status.hintColor)
+                    .animation(.easeInOut(duration: 0.15), value: status.hint)
             }
-            .padding(.horizontal, 18)
+
+            if status.isProcessing {
+                ProgressView().controlSize(.small)
+            }
         }
+        .padding(.horizontal, 18)
         .frame(width: 520, height: 68)
+        .glassPanel(cornerRadius: 14)
         .onAppear {
             text = ""
             status = .idle

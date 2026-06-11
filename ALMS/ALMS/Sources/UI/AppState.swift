@@ -25,6 +25,21 @@ final class AppState {
     func checkFirstLaunch() {
         Task { await RemindersService.requestAccess() }
         Task { await CalendarService.requestAccess() }
+        reindexSpotlightIfNeeded()
+        NotificationService.requestPermission()
+    }
+
+    private func reindexSpotlightIfNeeded() {
+        let key = "spotlight_indexed_v1"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        Task {
+            SpotlightService().reindexAll(db: db)
+            UserDefaults.standard.set(true, forKey: key)
+        }
+    }
+
+    func forceReindexSpotlight() {
+        UserDefaults.standard.removeObject(forKey: "spotlight_indexed_v1")
         Task { SpotlightService().reindexAll(db: db) }
     }
 }
