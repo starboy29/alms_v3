@@ -27,9 +27,9 @@ private struct SettingsContentView: View {
 
     var body: some View {
         Form {
-            setupSection
             storageSection
             appleSection
+            semesterSection
             subjectsSection
         }
         .formStyle(.grouped)
@@ -43,27 +43,6 @@ private struct SettingsContentView: View {
             Button("OK") { vm.showSavedAlert = false }
         } message: {
             Text("Settings have been saved.")
-        }
-    }
-
-    private var setupSection: some View {
-        Section {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Apple Shortcuts")
-                        .font(.body)
-                    Text("Check and install the Calendar shortcut")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Button("Open Setup Wizard") {
-                    appState.showSetupWizard = true
-                }
-                .buttonStyle(.bordered)
-            }
-        } header: {
-            Label("Setup", systemImage: "bolt")
         }
     }
 
@@ -90,21 +69,58 @@ private struct SettingsContentView: View {
             LabeledContent("Calendar") {
                 TextField("ALMS", text: $vm.calendarName).multilineTextAlignment(.trailing)
             }
-            LabeledContent("Notes Folder") {
-                TextField("ALMS", text: $vm.notesFolder).multilineTextAlignment(.trailing)
-            }
-            LabeledContent("Notes Account") {
-                TextField("iCloud", text: $vm.notesAccount).multilineTextAlignment(.trailing)
-            }
         } header: {
             Label("Apple Apps", systemImage: "apple.logo")
         }
     }
 
+    private var semesterSection: some View {
+        Section {
+            ForEach(vm.semesters, id: \.id) { sem in
+                HStack {
+                    Text(sem.name)
+                    if sem.isActive {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                        Text("Active").font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if !sem.isActive {
+                        Button("Set Active") { vm.switchSemester(id: sem.id) }
+                            .buttonStyle(.bordered)
+                    }
+                }
+            }
+            if vm.showNewSemester {
+                HStack {
+                    TextField("Semester name", text: $vm.newSemesterName)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit { vm.addSemester() }
+                    Button("Add") { vm.addSemester() }
+                        .buttonStyle(.bordered)
+                        .disabled(vm.newSemesterName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button("Cancel") { vm.showNewSemester = false; vm.newSemesterName = "" }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            HStack {
+                Label("Semesters", systemImage: "calendar.badge.clock")
+                Spacer()
+                if !vm.showNewSemester {
+                    Button { vm.showNewSemester = true } label: {
+                        Image(systemName: "plus").fontWeight(.medium)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
     private var subjectsSection: some View {
         Section {
-            if vm.subjects.isEmpty {
-                Text("No subjects found.")
+            if vm.subjects.isEmpty && !vm.showNewSubject {
+                Text("No subjects yet. Tap + to add one.")
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(vm.subjects, id: \.id) { subject in
@@ -125,8 +141,42 @@ private struct SettingsContentView: View {
                     }
                 }
             }
+            if vm.showNewSubject {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        TextField("Code (e.g. ANN)", text: $vm.newSubjectCode)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 130)
+                        TextField("Subject name", text: $vm.newSubjectName)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit { vm.addSubject() }
+                    }
+                    HStack {
+                        Button("Add Subject") { vm.addSubject() }
+                            .buttonStyle(.bordered)
+                            .disabled(vm.newSubjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        Button("Cancel") {
+                            vm.showNewSubject = false
+                            vm.newSubjectCode = ""
+                            vm.newSubjectName = ""
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
         } header: {
-            Label("Subjects — \(vm.activeSemesterName)", systemImage: "book")
+            HStack {
+                Label("Subjects — \(vm.activeSemesterName)", systemImage: "book")
+                Spacer()
+                if !vm.showNewSubject {
+                    Button { vm.showNewSubject = true } label: {
+                        Image(systemName: "plus").fontWeight(.medium)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 }

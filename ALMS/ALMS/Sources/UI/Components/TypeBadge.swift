@@ -23,6 +23,7 @@ struct TypeBadge: View {
         case "notes":      return "Notes"
         case "resource":   return "Resource"
         case "event":      return "Event"
+        case "pyq":        return "PYQ"
         default:           return type.capitalized
         }
     }
@@ -36,6 +37,7 @@ struct TypeBadge: View {
         case "notes":      return .orange
         case "resource":   return .teal
         case "event":      return .indigo
+        case "pyq":        return .brown
         default:           return .secondary
         }
     }

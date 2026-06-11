@@ -18,5 +18,12 @@ struct ContentView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .onReceive(NotificationCenter.default.publisher(for: .quickEntryNeedsConfirmation)) { note in
+            if let text = note.object as? String {
+                appState.selectedTab = .inbox
+                appState.quickEntryPendingText = text
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
     }
 }

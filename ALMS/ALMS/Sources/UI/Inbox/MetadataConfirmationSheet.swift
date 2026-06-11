@@ -10,7 +10,7 @@ struct MetadataConfirmationSheet: View {
     @State private var selectedSubjectId: String = ""
     @State private var units: [ALMSUnit] = []
     @State private var selectedUnitId: String = ""
-    @State private var selectedType: ItemType = .assignment
+    @State private var selectedType: ItemType = .other
     @State private var title: String = ""
     @State private var hasDueDate: Bool = false
     @State private var dueDateValue: Date = Date()
@@ -48,7 +48,7 @@ struct MetadataConfirmationSheet: View {
                 .disabled(units.isEmpty)
 
                 Picker("Type", selection: $selectedType) {
-                    ForEach([ItemType.assignment, .exam, .lab, .project, .notes, .resource, .event, .other], id: \.self) { t in
+                    ForEach([ItemType.assignment, .exam, .lab, .project, .notes, .resource, .event, .pyq, .other], id: \.self) { t in
                         Text(t.rawValue.capitalized).tag(t)
                     }
                 }
@@ -129,7 +129,7 @@ struct MetadataConfirmationSheet: View {
 
 extension ItemType: CaseIterable {
     public static var allCases: [ItemType] {
-        [.assignment, .exam, .lab, .project, .notes, .resource, .event, .other]
+        [.assignment, .exam, .lab, .project, .notes, .resource, .event, .pyq, .other]
     }
 }
 

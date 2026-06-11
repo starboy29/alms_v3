@@ -2,7 +2,8 @@ import AppKit
 import Foundation
 import UniformTypeIdentifiers
 
-struct InboxRow {
+struct InboxRow: Identifiable {
+    var id: String { item.id }
     let item: Item
     let subjectCode: String?
     let unitName: String?
@@ -28,7 +29,7 @@ final class InboxViewModel {
         loadRecentItems()
     }
 
-    private var service: InboxService { InboxService(db: db, bridge: ShortcutsBridge()) }
+    private var service: InboxService { InboxService(db: db) }
 
     func submit() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -75,16 +76,7 @@ final class InboxViewModel {
             if let path = pendingFilePath {
                 _ = try service.submitFile(path, confirmedMetadata: confirmed)
             } else {
-                let now = ISO8601DateFormatter().string(from: Date())
-                let item = Item(
-                    id: UUID().uuidString, subjectId: confirmed.subjectId,
-                    unitId: confirmed.unitId, categoryId: confirmed.categoryId,
-                    type: confirmed.type.rawValue, title: confirmed.title,
-                    description: nil, dueDate: confirmed.dueDate, dueTime: nil,
-                    priority: confirmed.priority.rawValue, source: "inbox_text",
-                    status: ItemStatus.active.rawValue, createdAt: now, updatedAt: now
-                )
-                try ItemRepository(db: db).insert(item)
+                _ = try service.submitConfirmedText(confirmed)
             }
             reset()
             loadRecentItems()
@@ -112,6 +104,7 @@ final class InboxViewModel {
     func clearAll() {
         do {
             try ItemRepository(db: db).archiveAll()
+            SpotlightService().deindexAll()
             loadRecentItems()
         } catch {
             showErrorMessage(error.localizedDescription)

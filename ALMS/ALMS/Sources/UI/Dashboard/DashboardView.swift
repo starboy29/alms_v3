@@ -46,6 +46,9 @@ private struct DashboardContentView: View {
             }
             .padding(18)
         }
+        .sheet(isPresented: $vm.showSyncIssues) {
+            SyncIssuesView(vm: vm)
+        }
     }
 
     private var statsRow: some View {
@@ -53,7 +56,13 @@ private struct DashboardContentView: View {
             StatCard(title: "Due Today",      value: "\(vm.itemsDueToday.count)",    icon: "calendar.badge.exclamationmark", color: vm.itemsDueToday.isEmpty ? .secondary : .orange)
             StatCard(title: "Active Items",   value: "\(vm.allActiveItems.count)",   icon: "checklist",                     color: .blue)
             StatCard(title: "Upcoming (14d)", value: "\(vm.upcomingItems.count)",    icon: "clock",                         color: .purple)
-            StatCard(title: "Sync Issues",    value: "\(vm.syncFailureCount)",       icon: "exclamationmark.icloud",        color: vm.syncFailureCount > 0 ? .red : .secondary)
+            Button { vm.showSyncIssues = true } label: {
+                StatCard(title: "Sync Issues", value: "\(vm.syncFailureCount)",
+                         icon: "exclamationmark.icloud",
+                         color: vm.syncFailureCount > 0 ? .red : .secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(vm.syncFailureCount == 0)
         }
     }
 
@@ -76,6 +85,9 @@ private struct DashboardContentView: View {
                     .padding(.vertical, 9)
                     .contextMenu {
                         Button("Mark Complete") { vm.completeItem(item.id) }
+                        if vm.hasFile(itemId: item.id) {
+                            Button("Reveal in Finder") { vm.revealInFinder(itemId: item.id) }
+                        }
                         Divider()
                         Button("Archive", role: .destructive) { vm.archiveItem(item.id) }
                     }
@@ -161,7 +173,7 @@ private struct DashboardContentView: View {
         case "import":              return "arrow.down.circle.fill"
         case "error":               return "exclamationmark.triangle.fill"
         case "sync":                return "arrow.triangle.2.circlepath"
-        case "shortcut_call":       return "bolt.fill"
+        case "routed":              return "arrow.triangle.2.circlepath"
         case "file_move":           return "folder.fill"
         case "duplicate_prevented": return "doc.on.doc.fill"
         default:                    return "circle.fill"
@@ -173,7 +185,7 @@ private struct DashboardContentView: View {
         case "import":              return .blue
         case "error":               return .red
         case "sync":                return .green
-        case "shortcut_call":       return .orange
+        case "routed":              return .green
         case "file_move":           return .teal
         case "duplicate_prevented": return .purple
         default:                    return .secondary

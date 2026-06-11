@@ -19,13 +19,12 @@ enum AppTab: String, CaseIterable, Identifiable {
 @Observable
 final class AppState {
     var selectedTab: AppTab = .inbox
-    var showSetupWizard: Bool = false
+    var quickEntryPendingText: String?
     let db: ALMSDatabase = .shared
 
     func checkFirstLaunch() {
-        showSetupWizard = SetupWizardViewModel.needsSetup(db: db)
-        // Prompt for Reminders access early so it's granted before the first reminder is created
-        // (RemindersService.createReminder is synchronous and assumes access is already authorized).
         Task { await RemindersService.requestAccess() }
+        Task { await CalendarService.requestAccess() }
+        Task { SpotlightService().reindexAll(db: db) }
     }
 }

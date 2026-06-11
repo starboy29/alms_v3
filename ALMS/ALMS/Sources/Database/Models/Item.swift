@@ -32,7 +32,7 @@ struct Item: Codable, FetchableRecord, MutablePersistableRecord {
 }
 
 enum ItemType: String {
-    case notes, assignment, exam, lab, project, resource, event, other
+    case notes, assignment, exam, lab, project, resource, event, pyq, other
 
     /// Folder name used when filing a file of this type, e.g. a notes PDF lands in a "Notes" folder.
     var folderName: String {
@@ -44,7 +44,21 @@ enum ItemType: String {
         case .project:    return "Projects"
         case .resource:   return "Resources"
         case .event:      return "Events"
+        case .pyq:        return "PYQs"
         case .other:      return "Other"
+        }
+    }
+
+    /// Apple Calendar name for this type — matches the lowercase naming convention
+    /// used when Apple Calendar auto-creates calendars from Shortcuts.
+    var calendarName: String {
+        switch self {
+        case .assignment: return "assignments"
+        case .exam:       return "exam"
+        case .lab:        return "lab"
+        case .project:    return "projects"
+        case .event:      return "event"
+        case .notes, .resource, .pyq, .other: return "ALMS"
         }
     }
 }

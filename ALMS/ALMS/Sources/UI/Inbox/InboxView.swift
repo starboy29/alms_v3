@@ -18,6 +18,16 @@ struct InboxView: View {
             if viewModel == nil {
                 viewModel = InboxViewModel(db: appState.db)
             }
+            if let text = appState.quickEntryPendingText {
+                viewModel?.inputText = text
+                appState.quickEntryPendingText = nil
+            }
+        }
+        .onChange(of: appState.quickEntryPendingText) { _, newValue in
+            if let text = newValue {
+                viewModel?.inputText = text
+                appState.quickEntryPendingText = nil
+            }
         }
         .navigationTitle("Universal Inbox")
     }
@@ -25,12 +35,16 @@ struct InboxView: View {
 
 private struct InboxContentView: View {
     @Bindable var vm: InboxViewModel
+    @State private var detailRow: InboxRow?
 
     var body: some View {
         VStack(spacing: 0) {
             inputPanel
             Divider()
             itemsList
+        }
+        .sheet(item: $detailRow, onDismiss: { vm.loadRecentItems() }) { row in
+            ItemDetailView(row: row, db: vm.db, onRetry: { vm.loadRecentItems() })
         }
         .sheet(isPresented: $vm.showConfirmation) {
             if let meta = vm.pendingMetadata {
@@ -147,9 +161,11 @@ private struct InboxContentView: View {
                     description: Text("Type something above or drop a file to get started.")
                 )
             } else {
-                List(vm.recentItems, id: \.item.id) { row in
+                List(vm.recentItems) { row in
                     ItemRowView(item: row.item, subjectCode: row.subjectCode, unitName: row.unitName)
                         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                        .contentShape(Rectangle())
+                        .onTapGesture { detailRow = row }
                 }
                 .listStyle(.plain)
             }

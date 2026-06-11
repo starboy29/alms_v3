@@ -43,6 +43,27 @@ enum DateParser {
             }
         }
 
+        // "due 29" / "by 15" — day-only number anchored to "due" or "by" so we don't
+        // accidentally treat numbers in "unit 1" or "assignment 2" as dates.
+        let dayOnlyPattern = #"(?i)(?:due|by)\s+(\d{1,2})\b"#
+        if let regex = try? NSRegularExpression(pattern: dayOnlyPattern),
+           let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) {
+            let dayRange = Range(match.range(at: 1), in: text)
+            if let dayRange, let day = Int(text[dayRange]), (1...31).contains(day) {
+                let comps = calendar.dateComponents([.year, .month], from: today)
+                var target = DateComponents()
+                target.year = comps.year
+                target.month = comps.month
+                target.day = day
+                if let date = calendar.date(from: target) {
+                    // If the day has already passed this month, roll forward to next month.
+                    let resolved = date < today
+                        ? calendar.date(byAdding: .month, value: 1, to: date)! : date
+                    return iso8601Date(from: resolved)
+                }
+            }
+        }
+
         return nil
     }
 

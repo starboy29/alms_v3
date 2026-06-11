@@ -28,7 +28,7 @@ enum LogEventType: String {
     case `import`, sync, update
     case runtimeError = "error"
     case duplicatePrevented = "duplicate_prevented"
-    case shortcutCall = "shortcut_call"
+    case routed = "routed"
     case fileMove = "file_move"
     case retry
     case settingsChange = "settings_change"

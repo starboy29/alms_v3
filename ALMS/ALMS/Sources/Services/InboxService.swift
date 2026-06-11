@@ -37,11 +37,9 @@ enum InboxError: LocalizedError {
 
 struct InboxService {
     private let db: ALMSDatabase
-    private let bridge: ShortcutsBridging
 
-    init(db: ALMSDatabase, bridge: ShortcutsBridging) {
+    init(db: ALMSDatabase) {
         self.db = db
-        self.bridge = bridge
     }
 
     func submitText(_ text: String) throws -> InboxResult {
@@ -65,7 +63,29 @@ struct InboxService {
         )
 
         try routeItem(item)
+        SpotlightService().index(item, db: db)
         return InboxResult(itemId: item.id, needsConfirmation: false, metadata: metadata)
+    }
+
+    func submitConfirmedText(_ confirmed: ConfirmedMetadata) throws -> InboxResult {
+        let item = try createItem(
+            subjectId: confirmed.subjectId,
+            unitId: confirmed.unitId,
+            type: confirmed.type,
+            title: confirmed.title,
+            dueDate: confirmed.dueDate,
+            priority: confirmed.priority,
+            source: "inbox_text"
+        )
+        try routeItem(item)
+        SpotlightService().index(item, db: db)
+        let meta = ExtractedMetadata(
+            subjectId: confirmed.subjectId, subjectCode: nil,
+            unitId: confirmed.unitId, type: confirmed.type,
+            title: confirmed.title, dueDate: confirmed.dueDate,
+            confidence: .high, unmatchedFields: []
+        )
+        return InboxResult(itemId: item.id, needsConfirmation: false, metadata: meta)
     }
 
     func submitFile(_ filePath: String, confirmedMetadata: ConfirmedMetadata? = nil) throws -> InboxResult {
@@ -154,6 +174,7 @@ struct InboxService {
                    details: "File moved to \(finalPath)")
 
         try routeItem(item)
+        SpotlightService().index(item, db: db)
 
         let finalMetadata = ExtractedMetadata(
             subjectId: confirmed.subjectId, subjectCode: subject?.code,
@@ -189,7 +210,7 @@ struct InboxService {
     }
 
     private func routeItem(_ item: Item) throws {
-        let routing = RoutingEngine(db: db, bridge: bridge)
+        let routing = RoutingEngine(db: db)
         let targets = routing.route(item: item)
         try routing.execute(itemId: item.id, targets: targets)
     }

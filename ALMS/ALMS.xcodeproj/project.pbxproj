@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		92C138C02FD878C200D0D97B /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 92C138C12FD878C200D0D97B /* GRDB */; };
 		92C138C22FD878C200D0D97B /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 92C138C32FD878C200D0D97B /* GRDB */; };
+		92E6BC522FDAA72C004B3E16 /* CoreSpotlight.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 92E6BC512FDAA72C004B3E16 /* CoreSpotlight.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -32,6 +33,7 @@
 		92C137252FD8742200D0D97B /* ALMS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ALMS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		92C137322FD8742300D0D97B /* ALMSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ALMSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		92C1373C2FD8742300D0D97B /* ALMSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ALMSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		92E6BC512FDAA72C004B3E16 /* CoreSpotlight.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreSpotlight.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/CoreSpotlight.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -57,6 +59,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				92E6BC522FDAA72C004B3E16 /* CoreSpotlight.framework in Frameworks */,
 				92C138C02FD878C200D0D97B /* GRDB in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -85,6 +88,7 @@
 				92C137272FD8742200D0D97B /* ALMS */,
 				92C137352FD8742300D0D97B /* ALMSTests */,
 				92C1373F2FD8742300D0D97B /* ALMSUITests */,
+				92E6BC502FDAA72C004B3E16 /* Frameworks */,
 				92C137262FD8742200D0D97B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -97,6 +101,14 @@
 				92C1373C2FD8742300D0D97B /* ALMSUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		92E6BC502FDAA72C004B3E16 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				92E6BC512FDAA72C004B3E16 /* CoreSpotlight.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */

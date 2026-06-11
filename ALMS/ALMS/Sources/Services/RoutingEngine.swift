@@ -11,11 +11,9 @@ struct RoutingTarget {
 
 struct RoutingEngine {
     private let db: ALMSDatabase
-    private let bridge: ShortcutsBridging
 
-    init(db: ALMSDatabase, bridge: ShortcutsBridging) {
+    init(db: ALMSDatabase) {
         self.db = db
-        self.bridge = bridge
     }
 
     func route(item: Item) -> [RoutingTarget] {
@@ -34,7 +32,7 @@ struct RoutingEngine {
             return [RoutingTarget(app: .reminders, action: .create, reason: "Notes type → reminder")]
         case .event:
             return [RoutingTarget(app: .calendar, action: .create, reason: "Event type")]
-        case .resource, .other:
+        case .resource, .pyq, .other:
             return []
         }
     }
@@ -107,7 +105,7 @@ struct RoutingEngine {
                 title: reminderTitle, listName: listName, dueDate: due, tags: tags
             )
             try sync.updateReminderLinkStatus(itemId: item.id, status: .created, error: nil)
-            logger.log(eventType: .shortcutCall, entityId: item.id,
+            logger.log(eventType: .routed, entityId: item.id,
                        details: "Created reminder: \(reminderTitle)")
         } catch {
             try sync.updateReminderLinkStatus(itemId: item.id, status: .failed,
@@ -135,10 +133,13 @@ struct RoutingEngine {
         // "ANN: assignment 2 Due"
         let eventTitle = (subjectLabel.map { "\($0): \(item.title)" } ?? item.title) + " Due"
 
+        // Use the item's type as the calendar name so each type lands in its own calendar.
+        let typeCalendar = ItemType(rawValue: item.type)?.calendarName ?? calendarName
+
         let eventDate = item.dueDate ?? DateParser.iso8601Date(from: Date())
         let link = CalendarLink(
             id: UUID().uuidString, itemId: item.id, eventExtId: nil,
-            eventTitle: eventTitle, calendarName: calendarName,
+            eventTitle: eventTitle, calendarName: typeCalendar,
             eventDate: eventDate, allDay: true,
             status: SyncStatus.pending.rawValue,
             lastSyncedAt: nil, errorMessage: nil, retryCount: 0,
@@ -146,19 +147,30 @@ struct RoutingEngine {
         )
         try sync.upsertCalendarLink(link)
 
-        let params: [String: Any] = [
-            "title": eventTitle,
-            "start_date": eventDate,
-            "all_day": true,
-            "calendar": calendarName,
-            "notes": "Added via ALMS"
-        ]
+        var notesLines = ["Added via ALMS"]
+        if let label = subjectLabel { notesLines.append("Subject: \(label)") }
+        notesLines.append("Type: \(item.type.capitalized)")
+        if let unitId = item.unitId,
+           let unit = (try? UnitRepository(db: db).fetchById(unitId)) ?? nil {
+            notesLines.append("Unit: \(unit.name)")
+        }
+        let eventNotes = notesLines.joined(separator: "\n")
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        let eventDateObj = dateFormatter.date(from: eventDate) ?? Date()
 
         do {
-            _ = try bridge.call(shortcutName: "ALMS-CreateCalendarEvent", params: params)
+            try CalendarService().createEvent(
+                title: eventTitle,
+                calendarName: typeCalendar,
+                date: eventDateObj,
+                notes: eventNotes
+            )
             try sync.updateCalendarLinkStatus(itemId: item.id, status: .created, error: nil)
-            logger.log(eventType: .shortcutCall, entityId: item.id,
-                       details: "Created calendar event: \(item.title)")
+            logger.log(eventType: .routed, entityId: item.id,
+                       details: "Created calendar event: \(eventTitle)")
         } catch {
             try sync.updateCalendarLinkStatus(itemId: item.id, status: .failed,
                                               error: error.localizedDescription)

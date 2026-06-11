@@ -46,14 +46,18 @@ enum SubjectMatcher {
     }
 
     static func detectType(from lower: String) -> ItemType? {
+        // More specific / unambiguous types are checked first so they aren't shadowed by
+        // generic words like "assignment" or "notes" that may appear in the same phrase.
         let keywords: [(String, ItemType)] = [
-            ("assignment", .assignment), ("homework", .assignment),
-            ("exam", .exam), ("quiz", .exam), ("test", .exam),
+            ("event", .event),
+            ("exam", .exam), ("midsem", .exam), ("endsem", .exam),
+            ("quiz", .exam), ("test", .exam),
             ("lab", .lab), ("practical", .lab),
             ("project", .project),
+            ("assignment", .assignment), ("homework", .assignment),
+            ("pyq", .pyq), ("previous year", .pyq), ("past paper", .pyq),
             ("notes", .notes), ("note", .notes),
-            ("resource", .resource), ("material", .resource),
-            ("event", .event)
+            ("resource", .resource), ("material", .resource)
         ]
         for (kw, type) in keywords {
             if lower.range(of: "\\b\(kw)\\b", options: .regularExpression) != nil {

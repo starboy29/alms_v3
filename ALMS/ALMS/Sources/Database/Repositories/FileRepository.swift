@@ -14,6 +14,12 @@ struct FileRepository {
         }
     }
 
+    func fetchByItemId(_ itemId: String) throws -> ALMSFile? {
+        try db.dbQueue.read { db in
+            try ALMSFile.filter(Column("item_id") == itemId).fetchOne(db)
+        }
+    }
+
     func fetchById(_ id: String) throws -> ALMSFile? {
         try db.dbQueue.read { db in try ALMSFile.fetchOne(db, key: id) }
     }
