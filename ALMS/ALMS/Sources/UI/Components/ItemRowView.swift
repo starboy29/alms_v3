@@ -5,6 +5,13 @@ struct ItemRowView: View {
     var subjectCode: String? = nil
     var unitName: String? = nil
 
+    private var isOverdue: Bool {
+        guard item.status == ItemStatus.active.rawValue,
+              let due = item.dueDate else { return false }
+        let today = DateParser.iso8601Date(from: Date())
+        return due < today
+    }
+
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             if let code = subjectCode {
@@ -29,7 +36,8 @@ struct ItemRowView: View {
                     if let due = item.dueDate {
                         Text(formattedDate(due))
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(isOverdue ? .red : .secondary)
+                            .fontWeight(isOverdue ? .semibold : .regular)
                     }
                 }
             }
@@ -37,6 +45,15 @@ struct ItemRowView: View {
             statusMark
         }
         .padding(.vertical, 2)
+        .overlay(alignment: .leading) {
+            if isOverdue {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.red)
+                    .frame(width: 3)
+                    .padding(.vertical, 4)
+                    .offset(x: -8)
+            }
+        }
     }
 
     private var statusMark: some View {

@@ -14,6 +14,7 @@ struct SyncFailure: Identifiable {
 final class DashboardViewModel {
     var upcomingItems: [Item] = []
     var allActiveItems: [Item] = []
+    var dueSoonItems: [Item] = []
     var recentActivity: [ActivityLog] = []
     var syncFailureCount: Int = 0
     var failedSyncs: [SyncFailure] = []
@@ -28,6 +29,7 @@ final class DashboardViewModel {
 
     func load() {
         allActiveItems = (try? ItemRepository(db: db).fetchAll(status: .active)) ?? []
+        dueSoonItems = (try? ItemRepository(db: db).fetchDueSoon(withinDays: 7)) ?? []
 
         let cutoff = Calendar.current.date(byAdding: .day, value: 14, to: Date()) ?? Date()
         let cutoffStr = DateParser.iso8601Date(from: cutoff)
@@ -87,5 +89,13 @@ final class DashboardViewModel {
     var itemsDueToday: [Item] {
         let today = DateParser.iso8601Date(from: Date())
         return allActiveItems.filter { $0.dueDate == today }
+    }
+
+    var overdueItems: [Item] {
+        let today = DateParser.iso8601Date(from: Date())
+        return allActiveItems.filter { item in
+            guard let due = item.dueDate else { return false }
+            return due < today
+        }
     }
 }

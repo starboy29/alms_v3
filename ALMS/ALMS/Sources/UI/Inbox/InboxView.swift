@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -22,11 +23,21 @@ struct InboxView: View {
                 viewModel?.inputText = text
                 appState.quickEntryPendingText = nil
             }
+            if let path = appState.quickEntryPendingFilePath {
+                viewModel?.handleDroppedFile(at: path)
+                appState.quickEntryPendingFilePath = nil
+            }
         }
         .onChange(of: appState.quickEntryPendingText) { _, newValue in
             if let text = newValue {
                 viewModel?.inputText = text
                 appState.quickEntryPendingText = nil
+            }
+        }
+        .onChange(of: appState.quickEntryPendingFilePath) { _, newValue in
+            if let path = newValue {
+                viewModel?.handleDroppedFile(at: path)
+                appState.quickEntryPendingFilePath = nil
             }
         }
         .navigationTitle("Universal Inbox")
@@ -68,6 +79,9 @@ private struct InboxContentView: View {
                     onCancel: { vm.cancelFileDescription() }
                 )
             }
+        }
+        .sheet(isPresented: $vm.showBulkImport, onDismiss: { vm.dismissBulkImport() }) {
+            BulkImportSheet(vm: vm)
         }
         .alert("Error", isPresented: $vm.showError) {
             Button("OK") { vm.showError = false }
@@ -154,12 +168,37 @@ private struct InboxContentView: View {
             }
         }
         .onDrop(of: [.fileURL], isTargeted: $vm.isDragTargeted) { providers in
-            guard let provider = providers.first else { return false }
-            _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, _ in
-                guard let data,
-                      let str = String(data: data, encoding: .utf8),
-                      let url = URL(string: str) else { return }
-                DispatchQueue.main.async { vm.handleDroppedFile(at: url.path) }
+            var urls: [URL] = []
+            let group = DispatchGroup()
+            for provider in providers {
+                group.enter()
+                _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, _ in
+                    defer { group.leave() }
+                    guard let data,
+                          let str = String(data: data, encoding: .utf8),
+                          let url = URL(string: str) else { return }
+                    urls.append(url)
+                }
+            }
+            group.notify(queue: .main) {
+                let supported = Set(["pdf","png","jpg","jpeg","docx","pptx","xlsx","txt","md","zip"])
+                let expanded: [URL] = urls.flatMap { url -> [URL] in
+                    var isDir: ObjCBool = false
+                    FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
+                    if isDir.boolValue {
+                        let contents = (try? FileManager.default.contentsOfDirectory(
+                            at: url, includingPropertiesForKeys: nil,
+                            options: .skipsHiddenFiles
+                        )) ?? []
+                        return contents.filter { supported.contains($0.pathExtension.lowercased()) }
+                    }
+                    return [url]
+                }
+                if expanded.count > 1 {
+                    vm.startBulkImport(urls: expanded)
+                } else if let single = expanded.first {
+                    vm.handleDroppedFile(at: single.path)
+                }
             }
             return true
         }
@@ -179,6 +218,15 @@ private struct InboxContentView: View {
                         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                         .contentShape(Rectangle())
                         .onTapGesture { detailRow = row }
+                        .contextMenu {
+                            if let path = row.filePath {
+                                Button {
+                                    NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
+                                } label: {
+                                    Label("Reveal in Finder", systemImage: "folder")
+                                }
+                            }
+                        }
                 }
                 .listStyle(.plain)
             }

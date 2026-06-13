@@ -47,6 +47,23 @@ struct ItemRepository {
         }
     }
 
+    func fetchDueSoon(withinDays days: Int) throws -> [Item] {
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: startOfToday) ?? startOfToday
+        let cutoff = Calendar.current.date(byAdding: .day, value: days, to: startOfToday) ?? startOfToday
+        let tomorrowStr = DateParser.iso8601Date(from: tomorrow)
+        let cutoffStr = DateParser.iso8601Date(from: cutoff)
+        return try db.dbQueue.read { db in
+            try Item
+                .filter(Column("due_date") != nil)
+                .filter(Column("due_date") >= tomorrowStr)
+                .filter(Column("due_date") <= cutoffStr)
+                .filter(Column("status") == ItemStatus.active.rawValue)
+                .order(Column("due_date"))
+                .fetchAll(db)
+        }
+    }
+
     func archive(id: String) throws {
         try db.dbQueue.write { db in
             try db.execute(

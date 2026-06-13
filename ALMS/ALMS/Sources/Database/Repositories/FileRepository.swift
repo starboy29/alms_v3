@@ -20,6 +20,19 @@ struct FileRepository {
         }
     }
 
+    func fetchPathMap(itemIds: [String]) throws -> [String: String] {
+        guard !itemIds.isEmpty else { return [:] }
+        return try db.dbQueue.read { db in
+            let files = try ALMSFile
+                .filter(itemIds.contains(Column("item_id")))
+                .fetchAll(db)
+            return Dictionary(uniqueKeysWithValues: files.compactMap { f in
+                guard let itemId = f.itemId else { return nil }
+                return (itemId, f.storedPath)
+            })
+        }
+    }
+
     func fetchById(_ id: String) throws -> ALMSFile? {
         try db.dbQueue.read { db in try ALMSFile.fetchOne(db, key: id) }
     }

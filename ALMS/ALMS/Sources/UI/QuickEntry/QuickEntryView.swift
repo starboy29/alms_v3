@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 extension Notification.Name {
     static let quickEntryNeedsConfirmation = Notification.Name("com.alms.quickEntryNeedsConfirmation")
@@ -10,9 +11,26 @@ struct QuickEntryView: View {
 
     @State private var text = ""
     @State private var status: EntryStatus = .idle
+    @State private var isFileTargeted = false
     @FocusState private var focused: Bool
 
     var body: some View {
+        VStack(spacing: 0) {
+            textRow
+            Divider().opacity(0.4)
+            fileDropRow
+        }
+        .frame(width: 520, height: 120)
+        .glassPanel(cornerRadius: 14)
+        .onAppear {
+            text = ""
+            status = .idle
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { focused = true }
+        }
+        .onKeyPress(.escape) { onDismiss(); return .handled }
+    }
+
+    private var textRow: some View {
         HStack(spacing: 14) {
             Image(systemName: status.iconName)
                 .foregroundStyle(status.iconColor)
@@ -39,14 +57,38 @@ struct QuickEntryView: View {
             }
         }
         .padding(.horizontal, 18)
-        .frame(width: 520, height: 68)
-        .glassPanel(cornerRadius: 14)
-        .onAppear {
-            text = ""
-            status = .idle
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { focused = true }
+        .frame(height: 68)
+    }
+
+    private var fileDropRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.down.doc")
+                .foregroundStyle(isFileTargeted ? Color.accentColor : Color.secondary)
+                .font(.system(size: 13))
+            Text("Drop a file to add it")
+                .font(.system(size: 12))
+                .foregroundStyle(isFileTargeted ? Color.accentColor : Color.secondary)
         }
-        .onKeyPress(.escape) { onDismiss(); return .handled }
+        .frame(height: 40)
+        .frame(maxWidth: .infinity)
+        .background(isFileTargeted ? Color.accentColor.opacity(0.08) : Color.clear)
+        .animation(.easeInOut(duration: 0.1), value: isFileTargeted)
+        .onDrop(of: [.fileURL], isTargeted: $isFileTargeted) { providers in
+            guard let provider = providers.first else { return false }
+            _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, _ in
+                guard let data,
+                      let str = String(data: data, encoding: .utf8),
+                      let url = URL(string: str) else { return }
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: .quickEntryFilePending,
+                        object: url.path
+                    )
+                    onDismiss()
+                }
+            }
+            return true
+        }
     }
 
     private func submit() {

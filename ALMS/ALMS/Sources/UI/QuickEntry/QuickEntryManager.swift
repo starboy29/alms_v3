@@ -48,10 +48,10 @@ final class QuickEntryManager: NSObject {
             DispatchQueue.main.async { self?.hide() }
         }
         let hosting = NSHostingView(rootView: view)
-        hosting.frame = NSRect(x: 0, y: 0, width: 520, height: 68)
+        hosting.frame = NSRect(x: 0, y: 0, width: 520, height: 120)
 
         let w = QuickEntryWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 68),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 120),
             styleMask: [.borderless, .fullSizeContentView],
             backing: .buffered,
             defer: false

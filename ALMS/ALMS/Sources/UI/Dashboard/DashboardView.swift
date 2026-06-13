@@ -52,8 +52,11 @@ private struct DashboardContentView: View {
     }
 
     private var statsRow: some View {
-        HStack(spacing: 12) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 120, maximum: 200))],
+                  spacing: 12) {
             StatCard(title: "Due Today",      value: "\(vm.itemsDueToday.count)",    icon: "calendar.badge.exclamationmark", color: vm.itemsDueToday.isEmpty ? .secondary : .orange)
+            StatCard(title: "Due This Week",  value: "\(vm.dueSoonItems.count)",     icon: "calendar.badge.clock",           color: vm.dueSoonItems.isEmpty ? .secondary : .blue)
+            StatCard(title: "Overdue",        value: "\(vm.overdueItems.count)",     icon: "exclamationmark.circle",         color: vm.overdueItems.isEmpty ? .secondary : .red)
             StatCard(title: "Active Items",   value: "\(vm.allActiveItems.count)",   icon: "checklist",                     color: .blue)
             StatCard(title: "Upcoming (14d)", value: "\(vm.upcomingItems.count)",    icon: "clock",                         color: .purple)
             Button { vm.showSyncIssues = true } label: {

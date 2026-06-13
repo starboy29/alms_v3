@@ -7,6 +7,16 @@ struct InboxRow: Identifiable {
     let item: Item
     let subjectCode: String?
     let unitName: String?
+    let filePath: String?
+}
+
+enum BulkRowStatus { case pending, filing, filed, skipped, failed }
+
+struct BulkImportRow: Identifiable {
+    let id = UUID()
+    let url: URL
+    var status: BulkRowStatus = .pending
+    var errorMessage: String?
 }
 
 @Observable
@@ -24,6 +34,9 @@ final class InboxViewModel {
     var isDragTargeted = false
     var recentItems: [InboxRow] = []
     var showClearConfirm = false
+    var bulkRows: [BulkImportRow] = []
+    var showBulkImport = false
+    var isBulkFiling = false
 
     let db: ALMSDatabase
 
@@ -136,14 +149,33 @@ final class InboxViewModel {
 
     func openFilePicker() {
         let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = true
         panel.canChooseFiles = true
         panel.allowedContentTypes = [.pdf, .presentation, .spreadsheet, .text,
                                      .image, .zip, .data]
-        panel.title = "Choose a file to import"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        handleDroppedFile(at: url.path)
+        panel.title = "Choose files or a folder to import"
+        guard panel.runModal() == .OK else { return }
+
+        let supported = Set(["pdf","png","jpg","jpeg","docx","pptx","xlsx","txt","md","zip"])
+        let expanded: [URL] = panel.urls.flatMap { url -> [URL] in
+            var isDir: ObjCBool = false
+            FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
+            if isDir.boolValue {
+                let contents = (try? FileManager.default.contentsOfDirectory(
+                    at: url, includingPropertiesForKeys: nil,
+                    options: .skipsHiddenFiles
+                )) ?? []
+                return contents.filter { supported.contains($0.pathExtension.lowercased()) }
+            }
+            return [url]
+        }
+
+        if expanded.count > 1 {
+            startBulkImport(urls: expanded)
+        } else if let single = expanded.first {
+            handleDroppedFile(at: single.path)
+        }
     }
 
     func clearAll() {
@@ -176,13 +208,77 @@ final class InboxViewModel {
             }
         }
 
+        let filePathMap = (try? FileRepository(db: db).fetchPathMap(itemIds: items.map(\.id))) ?? [:]
+
         recentItems = items.map { item in
             InboxRow(
                 item: item,
                 subjectCode: subjectMap[item.subjectId],
-                unitName: item.unitId.flatMap { unitMap[$0] }
+                unitName: item.unitId.flatMap { unitMap[$0] },
+                filePath: filePathMap[item.id]
             )
         }
+    }
+
+    func startBulkImport(urls: [URL]) {
+        bulkRows = urls.map { BulkImportRow(url: $0) }
+        showBulkImport = true
+    }
+
+    func confirmBulkRow(_ row: BulkImportRow) {
+        guard let idx = bulkRows.firstIndex(where: { $0.id == row.id }) else { return }
+        bulkRows[idx].status = .filing
+        Task { @MainActor in
+            do {
+                let result = try await service.submitFile(row.url.path)
+                if result.needsConfirmation {
+                    bulkRows[idx].status = .failed
+                    bulkRows[idx].errorMessage = "Could not detect subject — file individually"
+                } else {
+                    bulkRows[idx].status = .filed
+                    loadRecentItems()
+                }
+            } catch InboxError.duplicateFile(_) {
+                bulkRows[idx].status = .skipped
+                bulkRows[idx].errorMessage = "Already filed"
+            } catch {
+                bulkRows[idx].status = .failed
+                bulkRows[idx].errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func confirmAllBulk() {
+        let pending = bulkRows.indices.filter { bulkRows[$0].status == .pending }
+        guard !pending.isEmpty else { return }
+        isBulkFiling = true
+        Task { @MainActor in
+            defer { isBulkFiling = false }
+            for idx in pending {
+                bulkRows[idx].status = .filing
+                do {
+                    let result = try await service.submitFile(bulkRows[idx].url.path)
+                    if result.needsConfirmation {
+                        bulkRows[idx].status = .failed
+                        bulkRows[idx].errorMessage = "Could not detect subject — file individually"
+                    } else {
+                        bulkRows[idx].status = .filed
+                    }
+                } catch InboxError.duplicateFile(_) {
+                    bulkRows[idx].status = .skipped
+                    bulkRows[idx].errorMessage = "Already filed"
+                } catch {
+                    bulkRows[idx].status = .failed
+                    bulkRows[idx].errorMessage = error.localizedDescription
+                }
+            }
+            loadRecentItems()
+        }
+    }
+
+    func dismissBulkImport() {
+        showBulkImport = false
+        bulkRows = []
     }
 
     // MARK: - Private

@@ -20,6 +20,7 @@ enum AppTab: String, CaseIterable, Identifiable {
 final class AppState {
     var selectedTab: AppTab = .inbox
     var quickEntryPendingText: String?
+    var quickEntryPendingFilePath: String?
     let db: ALMSDatabase = .shared
 
     func checkFirstLaunch() {
@@ -27,6 +28,19 @@ final class AppState {
         Task { await CalendarService.requestAccess() }
         reindexSpotlightIfNeeded()
         NotificationService.requestPermission()
+        DueDateWarningService(db: db).checkAndNotifyIfNeeded()
+        observeQuickEntryFile()
+    }
+
+    private func observeQuickEntryFile() {
+        NotificationCenter.default.addObserver(
+            forName: .quickEntryFilePending,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            self?.selectedTab = .inbox
+            self?.quickEntryPendingFilePath = note.object as? String
+        }
     }
 
     private func reindexSpotlightIfNeeded() {
@@ -42,4 +56,8 @@ final class AppState {
         UserDefaults.standard.removeObject(forKey: "spotlight_indexed_v1")
         Task { SpotlightService().reindexAll(db: db) }
     }
+}
+
+extension Notification.Name {
+    static let quickEntryFilePending = Notification.Name("com.alms.quickEntryFilePending")
 }
