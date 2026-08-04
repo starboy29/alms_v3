@@ -219,6 +219,9 @@ private struct InboxContentView: View {
                         .contentShape(Rectangle())
                         .onTapGesture { detailRow = row }
                         .contextMenu {
+                            if row.item.status == ItemStatus.active.rawValue {
+                                Button("Mark Complete") { vm.markComplete(row.item.id) }
+                            }
                             if let path = row.filePath {
                                 Button {
                                     NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")

@@ -220,6 +220,11 @@ final class InboxViewModel {
         }
     }
 
+    func markComplete(_ id: String) {
+        try? ItemRepository(db: db).complete(id: id)
+        loadRecentItems()
+    }
+
     func startBulkImport(urls: [URL]) {
         bulkRows = urls.map { BulkImportRow(url: $0) }
         showBulkImport = true
